@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -16,10 +16,15 @@
 
 #include "zbxjson.h"
 
-void zbx_preproc_stats_ext_get(struct zbx_json *json, const void *arg)
+void zbx_preproc_stats_ext_get_data(struct zbx_json *json, const void *arg)
 {
 	ZBX_UNUSED(arg);
 
 	/* zabbix[preprocessing_queue] */
 	zbx_json_adduint64(json, "preprocessing_queue", zbx_preprocessor_get_queue_size());
+
+	/* zabbix[preprocessing] */
+	zbx_json_addobject(json, "preprocessing");
+	zbx_preprocessor_get_size(json);
+	zbx_json_close(json);
 }

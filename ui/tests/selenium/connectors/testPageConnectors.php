@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,9 +14,9 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
 
 /**
  * @backup connector, profiles
@@ -155,14 +155,16 @@ class testPageConnectors extends CWebTest {
 		);
 
 		// Check displaying and hiding the filter.
-		$filter_form = $this->query('name:zbx_filter')->asForm()->one();
-		$filter_tab = $this->query('xpath://a[text()="Filter"]')->one();
-		$filter = $filter_form->query('id:tab_0')->one();
-		$this->assertTrue($filter->isDisplayed());
-		$filter_tab->click();
-		$this->assertFalse($filter->isDisplayed());
-		$filter_tab->click();
-		$this->assertTrue($filter->isDisplayed());
+		$filter = CFilterElement::find()->one();
+		$filter_form = $filter->getForm();
+		$this->assertEquals('Filter', $filter->getSelectedTabName());
+		// Check that filter is expanded by default.
+		$this->assertTrue($filter->isExpanded());
+		// Check that filter is collapsing/expanding on click.
+		foreach ([false, true] as $status) {
+			$filter->expand($status);
+			$this->assertTrue($filter->isExpanded($status));
+		}
 
 		// Check filter fields.
 		$this->assertEquals(['Name', 'Status'], $filter_form->getLabels()->asText());
@@ -202,6 +204,10 @@ class testPageConnectors extends CWebTest {
 
 		// Check Connectors table content.
 		$this->assertTableHasData($connectors_data);
+
+		// Check that the filter is still expanded after page refresh.
+		$this->page->refresh()->waitUntilReady();
+		$this->assertTrue($filter->isExpanded());
 	}
 
 	public function getFilterData() {
@@ -468,20 +474,6 @@ class testPageConnectors extends CWebTest {
 		return [
 			[
 				[
-					'link_button' => true,
-					'action' => 'Disable',
-					'name' => self::$update_connector
-				]
-			],
-			[
-				[
-					'link_button' => true,
-					'action' => 'Enable',
-					'name' =>'Disabled connector'
-				]
-			],
-			[
-				[
 					'action' => 'Enable'
 				]
 			],
@@ -526,18 +518,12 @@ class testPageConnectors extends CWebTest {
 		}
 
 		$this->page->login()->open('zabbix.php?action=connector.list');
-		if (array_key_exists('link_button', $data)) {
-			// Disable or enable Connector via Enabled/Disabled button.
-			$row = $this->query('class:list-table')->asTable()->one()->findRow('Name', $data['name'][0]);
-			$row->getColumn('Status')->query('xpath:.//a')->one()->click();
-		}
-		else {
-			// Connectors count that will be selected before Enable/Disable/Delete action.
-			$selected_count = array_key_exists('name', $data) ? count($data['name']) : CDBHelper::getCount(self::$connector_sql);
-			$this->selectTableRows(CTestArrayHelper::get($data, 'name'));
-			$this->assertSelectedCount($selected_count);
-			$this->query('button:'.$data['action'])->one()->waitUntilClickable()->click();
-		}
+
+		// Connectors count that will be selected before Enable/Disable/Delete action.
+		$selected_count = array_key_exists('name', $data) ? count($data['name']) : CDBHelper::getCount(self::$connector_sql);
+		$this->selectTableRows(CTestArrayHelper::get($data, 'name'));
+		$this->assertSelectedCount($selected_count);
+		$this->query('button:'.$data['action'])->one()->waitUntilClickable()->click();
 
 		$message = $data['action'].' selected connector'.(count(CTestArrayHelper::get($data, 'name', [])) === 1 ? '?' : 's?' );
 		$this->assertEquals($message, $this->page->getAlertText());
@@ -632,8 +618,10 @@ class testPageConnectors extends CWebTest {
 		}
 
 		// Check alert and success message.
-		$this->assertEquals($data['action'].' selected connector'.$plural.'?', $this->page->getAlertText());
-		$this->page->acceptAlert();
+		if (!array_key_exists('link_button', $data)) {
+			$this->assertEquals($data['action'].' selected connector'.$plural.'?', $this->page->getAlertText());
+			$this->page->acceptAlert();
+		}
 		$this->page->waitUntilReady();
 		$this->assertMessage(TEST_GOOD, 'Connector'.$plural.' '.lcfirst($data['action']).'d');
 		CMessageElement::find()->one()->close();

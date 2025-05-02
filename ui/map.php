@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -43,8 +43,10 @@ $options = [
 	'mapid' => $map_data['id'],
 	'canvas' => $map_data['canvas'],
 	'background' => $map_data['background'],
+	'background_scale' => $map_data['background_scale'],
 	'elements' => $map_data['elements'],
 	'links' => $map_data['links'],
+	'duplicated_links' => $map_data['duplicated_links'],
 	'shapes' => $map_data['shapes'],
 	'aria_label' => $map_data['aria_label'],
 	'label_location' => $map_data['label_location'],

@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -51,6 +51,9 @@
 					document.getElementById('authtype').value == <?= ITEM_AUTHTYPE_PUBLICKEY ?>
 				? <?= json_encode(_('Key passphrase')) ?>
 				: <?= json_encode(_('Password')) ?>;
+		}
+		else {
+			document.getElementById('js-item-password-label').innerText = <?= json_encode(_('Password')) ?>;
 		}
 	}
 
@@ -268,12 +271,12 @@
 			}
 			else {
 				overlayDialogue({
-					'title': <?= json_encode(_('Error')); ?>,
-					'class': 'modal-popup position-middle',
-					'content': $('<span>').html(<?=
+					title: <?= json_encode(_('Error')); ?>,
+					class: 'modal-popup',
+					content: $('<span>').html(<?=
 						json_encode(_('Failed to parse URL.').'<br><br>'._('URL is not properly encoded.'));
 					?>),
-					'buttons': [
+					buttons: [
 						{
 							title: <?= json_encode(_('Ok')); ?>,
 							class: 'btn-alt',
@@ -281,7 +284,10 @@
 							action: function() {}
 						}
 					]
-				}, e.target);
+				}, {
+					position: Overlay.prototype.POSITION_CENTER,
+					trigger_element: e.target
+				});
 			}
 		});
 

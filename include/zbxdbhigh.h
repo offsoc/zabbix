@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -517,7 +517,7 @@ typedef enum
 {
 	ZBX_CONN_DEFAULT = 0,
 	ZBX_CONN_IP,
-	ZBX_CONN_DNS,
+	ZBX_CONN_DNS
 }
 zbx_conn_flags_t;
 
@@ -722,9 +722,6 @@ int	zbx_db_check_version_info(struct zbx_db_version_info_t *info, int allow_unsu
 void	zbx_db_version_info_clear(struct zbx_db_version_info_t *version_info);
 void	zbx_db_flush_version_requirements(const char *version);
 
-#define ZBX_MAX_HRECORDS	1000
-#define ZBX_MAX_HRECORDS_TOTAL	10000
-
 #define ZBX_PROXY_DATA_DONE	0
 #define ZBX_PROXY_DATA_MORE	1
 
@@ -771,5 +768,7 @@ int	zbx_get_proxy_protocol_version_int(const char *version_str);
 
 #define PROXY_OPERATING_MODE_ACTIVE	0
 #define PROXY_OPERATING_MODE_PASSIVE	1
+
+int	zbx_db_setting_exists(const char *config_name);
 
 #endif

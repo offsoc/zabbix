@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -39,6 +39,16 @@ else {
 	];
 
 	$rows = [];
+
+	if ($data['sparkline']) {
+		$rows[] = (new CSparkline())
+			->setColor('#'.$data['sparkline']['color'])
+			->setLineWidth($data['sparkline']['width'])
+			->setFill($data['sparkline']['fill'])
+			->setValue($data['sparkline']['value'])
+			->setTimePeriodFrom($data['sparkline']['from'])
+			->setTimePeriodTo($data['sparkline']['to']);
+	}
 
 	foreach ($classes_vertical as $row_key => $row_class) {
 		$cols = [];
@@ -89,9 +99,7 @@ else {
 		$rows[] = new CDiv($cols);
 	}
 
-	$body = new CDiv(
-		new CLink($rows, $data['url'])
-	);
+	$body = new CLink($rows, $data['url']);
 
 	if ($data['bg_color'] !== '') {
 		$body->addStyle('background-color: #'.$data['bg_color'].';');
@@ -116,11 +124,11 @@ function drawValueCell(array $cell_data): array {
 	if (array_key_exists('units', $cell_data['parts'])) {
 		$units_div = (new CDiv())->addClass('units');
 		$units_div = addTextFormatting($units_div, $cell_data['parts']['units']);
-	}
 
-	// Units ABOVE value.
-	if (array_key_exists('units', $cell_data['parts']) && $cell_data['units_pos'] == Widget::POSITION_ABOVE) {
-		$item_cell[] = $units_div;
+		// Units ABOVE value.
+		if ($cell_data['units_pos'] == Widget::POSITION_ABOVE) {
+			$item_cell[] = $units_div;
+		}
 	}
 
 	$item_content_div = (new CDiv())->addClass('item-value-content');
@@ -130,15 +138,17 @@ function drawValueCell(array $cell_data): array {
 		$item_content_div->addItem($units_div);
 	}
 
-	$item_value_div = (new CDiv())->addClass('value');
+	if (array_key_exists('value', $cell_data['parts'])) {
+		$item_value_div = (new CDiv())->addClass('value');
 
-	if ($cell_data['parts']['value']['text'] === null) {
-		$cell_data['parts']['value']['text'] = _('No data');
-		$item_value_div->addClass('item-value-no-data');
+		if ($cell_data['parts']['value']['text'] === null) {
+			$cell_data['parts']['value']['text'] = _('No data');
+			$item_value_div->addClass('item-value-no-data');
+		}
+
+		$item_value_div = addTextFormatting($item_value_div, $cell_data['parts']['value']);
+		$item_content_div->addItem($item_value_div);
 	}
-
-	$item_value_div = addTextFormatting($item_value_div, $cell_data['parts']['value']);
-	$item_content_div->addItem($item_value_div);
 
 	if (array_key_exists('decimals', $cell_data['parts'])) {
 		$item_decimals_div = (new CDiv())->addClass('decimals');

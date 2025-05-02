@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -154,7 +154,7 @@ class CExpressionParser extends CParser {
 	 * @return bool  Returns true if parsed successfully, false otherwise.
 	 */
 	private static function parseExpression(string $source, int &$pos, array &$tokens, array $options,
-			int &$parsed_pos = null, int $depth = 0): bool {
+			?int &$parsed_pos = null, int $depth = 0): bool {
 		$binary_operator_parser = new CSetParser(['<', '>', '<=', '>=', '+', '-', '/', '*', '=', '<>']);
 		$logical_operator_parser = new CSetParser(['and', 'or']);
 

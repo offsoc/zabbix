@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -69,7 +69,7 @@ typedef struct
 	int		min_clock;
 
 	/* a reference to the housekeeping configuration mode (enable) option for this table */
-	unsigned char	*poption_mode;
+	int		*poption_mode;
 
 	/* a reference to the settings value specifying number of seconds the records must be kept */
 	int		*phistory;
@@ -85,10 +85,10 @@ typedef struct
 	const char	*name;
 
 	/* a reference to housekeeping configuration enable value for this table */
-	unsigned char	*poption_mode;
+	int		*poption_mode;
 
 	/* a reference to the housekeeping configuration overwrite option for this table */
-	unsigned char	*poption_global;
+	int		*poption_global;
 }
 zbx_hk_cleanup_table_t;
 
@@ -124,10 +124,10 @@ typedef struct
 	const char				*history;
 
 	/* a reference to the housekeeping configuration mode (enable) option for this table */
-	unsigned char				*poption_mode;
+	int					*poption_mode;
 
 	/* a reference to the housekeeping configuration overwrite option for this table */
-	unsigned char				*poption_global;
+	int					*poption_global;
 
 	/* a reference to the housekeeping configuration history value for this table */
 	int					*poption;
@@ -151,8 +151,8 @@ static int	tsdb_version = 0;
 
 static int	hk_period;
 
-static unsigned char poption_mode_regular	= ZBX_HK_MODE_REGULAR;
-static unsigned char poption_global_disabled	= ZBX_HK_OPTION_DISABLED;
+static int	poption_mode_regular	= ZBX_HK_MODE_REGULAR;
+static int	poption_global_disabled	= ZBX_HK_OPTION_DISABLED;
 
 /* global configuration data containing housekeeping configuration */
 static zbx_config_t	cfg;
@@ -1005,7 +1005,7 @@ static int	housekeeping_cleanup(int config_max_hk_delete)
 {
 	zbx_db_result_t		result;
 	zbx_db_row_t		row;
-	int			deleted = 0;
+	int			deleted = 0, tables = 0;
 	zbx_vector_uint64_t	housekeeperids;
 	char			*sql = NULL;
 	size_t			sql_alloc = 0, sql_offset = 0;
@@ -1032,8 +1032,12 @@ static int	housekeeping_cleanup(int config_max_hk_delete)
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "',");
 
 		zbx_free(table_name_esc);
+		tables++;
 	}
-	sql_offset--;
+
+	if (0 == tables)
+		goto exit;
+	sql_offset--;	/* remove comma from last entry */
 
 	/* order by tablename to effectively use DB cache */
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ") order by tablename");
@@ -1086,7 +1090,7 @@ static int	housekeeping_cleanup(int config_max_hk_delete)
 		zbx_vector_uint64_sort(&housekeeperids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 		zbx_db_execute_multiple_query("delete from housekeeper where", "housekeeperid", &housekeeperids);
 	}
-
+exit:
 	zbx_free(sql);
 
 	zbx_vector_uint64_destroy(&housekeeperids);

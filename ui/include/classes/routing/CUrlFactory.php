@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -24,10 +24,6 @@ class CUrlFactory {
 	 * @var array
 	 */
 	protected static $contextConfigs = [
-		'graphs.php' => [
-			'remove' => ['graphid'],
-			'add' => ['hostid', 'parent_discoveryid']
-		],
 		'host_discovery.php' => [
 			'remove' => ['itemid'],
 			'add' => ['hostid']

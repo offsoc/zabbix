@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -12,7 +12,6 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "poller.h"
 #include "zbxpoller.h"
 
 #include "zbxdb.h"
@@ -63,20 +62,7 @@
 #include "zbxsysinfo.h"
 #include "zbx_expression_constants.h"
 #include "zbxinterface.h"
-
-static zbx_get_progname_f	zbx_get_progname_cb = NULL;
-
-zbx_get_progname_f	poller_get_progname(void)
-{
-	return zbx_get_progname_cb;
-}
-
-static zbx_get_program_type_f	zbx_get_program_type_cb = NULL;
-
-zbx_get_program_type_f	poller_get_program_type(void)
-{
-	return zbx_get_program_type_cb;
-}
+#include "zbxxml.h"
 
 void	zbx_free_agent_result_ptr(AGENT_RESULT *result)
 {
@@ -105,7 +91,8 @@ static int	get_value(zbx_dc_item_t *item, AGENT_RESULT *result, zbx_vector_agent
 			break;
 		case ITEM_TYPE_INTERNAL:
 			res = get_value_internal(item, result, config_comms, config_startup_time, config_java_gateway,
-					config_java_gateway_port, get_config_forks, get_value_internal_ext_cb);
+					config_java_gateway_port, get_config_forks, get_value_internal_ext_cb,
+					program_type);
 			break;
 		case ITEM_TYPE_DB_MONITOR:
 #ifdef HAVE_UNIXODBC
@@ -169,12 +156,90 @@ static int	get_value(zbx_dc_item_t *item, AGENT_RESULT *result, zbx_vector_agent
 	return res;
 }
 
+static int	macro_http_raw_resolv(zbx_macro_resolv_data_t *p, va_list args, char **replace_with, char **data,
+		char *error, size_t maxerrlen)
+{
+	int				ret = SUCCEED;
+	zbx_dc_interface_t		interface;
+
+	/* Passed arguments */
+	const zbx_dc_um_handle_t	*um_handle = va_arg(args, zbx_dc_um_handle_t *);
+	const zbx_dc_host_t		*dc_host = va_arg(args, const zbx_dc_host_t *);
+	const zbx_dc_item_t		*dc_item = va_arg(args, const zbx_dc_item_t *);
+
+	ZBX_UNUSED(data);
+	ZBX_UNUSED(error);
+	ZBX_UNUSED(maxerrlen);
+
+	if (ZBX_TOKEN_USER_MACRO == p->token.type || (ZBX_TOKEN_USER_FUNC_MACRO == p->token.type &&
+			0 == strncmp(p->macro, MVAR_USER_MACRO, ZBX_CONST_STRLEN(MVAR_USER_MACRO))))
+	{
+		zbx_dc_get_user_macro(um_handle, p->macro, &dc_host->hostid, 1, replace_with);
+		p->pos = (int)p->token.loc.r;
+	}
+	else if (0 == strcmp(p->macro, MVAR_HOST_HOST) || 0 == strcmp(p->macro, MVAR_HOSTNAME))
+	{
+		*replace_with = zbx_strdup(*replace_with, dc_host->host);
+	}
+	else if (0 == strcmp(p->macro, MVAR_HOST_NAME))
+	{
+		*replace_with = zbx_strdup(*replace_with, dc_host->name);
+	}
+	else if (0 == strcmp(p->macro, MVAR_HOST_IP) || 0 == strcmp(p->macro, MVAR_IPADDRESS))
+	{
+		if (SUCCEED == (ret = zbx_dc_config_get_interface(&interface, dc_host->hostid, dc_item->itemid)))
+			*replace_with = zbx_strdup(*replace_with, interface.ip_orig);
+	}
+	else if	(0 == strcmp(p->macro, MVAR_HOST_DNS))
+	{
+		if (SUCCEED == (ret = zbx_dc_config_get_interface(&interface, dc_host->hostid, dc_item->itemid)))
+			*replace_with = zbx_strdup(*replace_with, interface.dns_orig);
+	}
+	else if (0 == strcmp(p->macro, MVAR_HOST_CONN))
+	{
+		if (SUCCEED == (ret = zbx_dc_config_get_interface(&interface, dc_host->hostid, dc_item->itemid)))
+			*replace_with = zbx_strdup(*replace_with, interface.addr);
+	}
+	else if (0 == strcmp(p->macro, MVAR_HOST_PORT))
+	{
+		if (SUCCEED == (ret = zbx_dc_config_get_interface(&interface, dc_host->hostid, dc_item->itemid)))
+			*replace_with = zbx_strdup(*replace_with, interface.port_orig);
+	}
+	else if (0 == strcmp(p->macro, MVAR_ITEM_ID))
+	{
+		*replace_with = zbx_dsprintf(*replace_with, ZBX_FS_UI64, dc_item->itemid);
+	}
+	else if (0 == strcmp(p->macro, MVAR_ITEM_KEY))
+	{
+		*replace_with = zbx_strdup(*replace_with, dc_item->key);
+	}
+	else if (0 == strcmp(p->macro, MVAR_ITEM_KEY_ORIG))
+	{
+		*replace_with = zbx_strdup(*replace_with, dc_item->key_orig);
+	}
+
+	return ret;
+}
+
+static int	macro_http_json_resolv(zbx_macro_resolv_data_t *p, va_list args, char **replace_with, char **data,
+		char *error, size_t maxerrlen)
+{
+	int	ret = macro_http_raw_resolv(p, args, replace_with, data, error, maxerrlen);
+
+	if (NULL != *replace_with)
+		zbx_json_escape(replace_with);
+
+	return ret;
+}
+
 static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, unsigned char expand_macros)
 {
 	struct zbx_json_parse	jp_array, jp_object;
 	char			name[MAX_STRING_LEN], value[MAX_STRING_LEN], *str = NULL;
 	const char		*member, *element = NULL;
 	size_t			alloc_len, offset;
+	zbx_dc_um_handle_t	*um_handle;
+	zbx_dc_um_handle_t	*um_handle_unmasked;
 
 	if ('\0' == **query_fields)
 		return SUCCEED;
@@ -191,6 +256,12 @@ static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, un
 		return FAIL;
 	}
 
+	if (ZBX_MACRO_EXPAND_YES == expand_macros)
+	{
+		um_handle = zbx_dc_open_user_macros_masked();
+		um_handle_unmasked = zbx_dc_open_user_macros_secure();
+	}
+
 	do
 	{
 		char	*data = NULL;
@@ -199,6 +270,12 @@ static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, un
 				NULL == (member = zbx_json_pair_next(&jp_object, NULL, name, sizeof(name))) ||
 				NULL == zbx_json_decodevalue(member, value, sizeof(value), NULL))
 		{
+			if (ZBX_MACRO_EXPAND_YES == expand_macros)
+			{
+				zbx_dc_close_user_macros(um_handle_unmasked);
+				zbx_dc_close_user_macros(um_handle);
+			}
+
 			zabbix_log(LOG_LEVEL_ERR, "cannot parse query fields: %s", zbx_json_strerror());
 			zbx_free(str);
 			return FAIL;
@@ -212,9 +289,9 @@ static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, un
 		data = zbx_strdup(data, name);
 		if (ZBX_MACRO_EXPAND_YES == expand_macros)
 		{
-			zbx_substitute_simple_macros(NULL, NULL, NULL,NULL, NULL, &item->host, item, NULL, NULL, NULL,
-					NULL, NULL, &data, ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+			zbx_substitute_macros(&data, NULL, 0, macro_http_raw_resolv, um_handle, &item->host, item);
 		}
+
 		zbx_url_encode(data, &data);
 		zbx_strcpy_alloc(&str, &alloc_len, &offset, data);
 		zbx_chrcpy_alloc(&str, &alloc_len, &offset, '=');
@@ -222,8 +299,8 @@ static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, un
 		data = zbx_strdup(data, value);
 		if (ZBX_MACRO_EXPAND_YES == expand_macros)
 		{
-			zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL,NULL, NULL, &item->host, item, NULL,
-					NULL, NULL, NULL, NULL, &data, ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+			zbx_substitute_macros(&data, NULL, 0, macro_http_raw_resolv, um_handle_unmasked, &item->host,
+					item);
 		}
 
 		zbx_url_encode(data, &data);
@@ -232,6 +309,12 @@ static int	parse_query_fields(const zbx_dc_item_t *item, char **query_fields, un
 		free(data);
 	}
 	while (NULL != (element = zbx_json_next(&jp_array, element)));
+
+	if (ZBX_MACRO_EXPAND_YES == expand_macros)
+	{
+		zbx_dc_close_user_macros(um_handle_unmasked);
+		zbx_dc_close_user_macros(um_handle);
+	}
 
 	zbx_free(*query_fields);
 	*query_fields = str;
@@ -281,7 +364,7 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 				0 == strncmp(p->macro, MVAR_USER_MACRO, ZBX_CONST_STRLEN(MVAR_USER_MACRO))))
 		{
 			zbx_dc_get_user_macro(um_handle, p->macro, &dc_item->host.hostid, 1, replace_with);
-			p->pos = p->token.loc.r;
+			p->pos = (int)p->token.loc.r;
 		}
 		else if (0 == strcmp(p->macro, MVAR_HOST_HOST) || 0 == strcmp(p->macro, MVAR_HOSTNAME))
 		{
@@ -300,7 +383,7 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 			else
 			{
 				ret = zbx_dc_get_interface_value(dc_item->host.hostid, dc_item->itemid, replace_with,
-						ZBX_REQUEST_HOST_IP);
+						ZBX_DC_REQUEST_HOST_IP);
 			}
 		}
 		else if	(0 == strcmp(p->macro, MVAR_HOST_DNS))
@@ -312,7 +395,7 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 			else
 			{
 				ret = zbx_dc_get_interface_value(dc_item->host.hostid, dc_item->itemid, replace_with,
-						ZBX_REQUEST_HOST_DNS);
+						ZBX_DC_REQUEST_HOST_DNS);
 			}
 		}
 		else if (0 == strcmp(p->macro, MVAR_HOST_CONN))
@@ -324,7 +407,7 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 			else
 			{
 				ret = zbx_dc_get_interface_value(dc_item->host.hostid, dc_item->itemid, replace_with,
-						ZBX_REQUEST_HOST_CONN);
+						ZBX_DC_REQUEST_HOST_CONN);
 			}
 		}
 		else if (0 == strcmp(p->macro, MVAR_HOST_PORT))
@@ -336,7 +419,7 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 			else
 			{
 				ret = zbx_dc_get_interface_value(dc_item->host.hostid, dc_item->itemid, replace_with,
-					ZBX_REQUEST_HOST_PORT);
+						ZBX_DC_REQUEST_HOST_PORT);
 			}
 		}
 	}
@@ -344,16 +427,35 @@ static int	macro_jmx_endpoint_resolv(zbx_macro_resolv_data_t *p, va_list args, c
 	return ret;
 }
 
+static int	item_resolver(char **data, char *error, size_t maxerrlen, va_list args)
+{
+	/* Passed arguments */
+	const zbx_dc_um_handle_t	*um_handle = va_arg(args, zbx_dc_um_handle_t *);
+	const zbx_dc_host_t		*dc_host = va_arg(args, const zbx_dc_host_t *);
+	const zbx_dc_item_t		*dc_item = va_arg(args, const zbx_dc_item_t *);
+
+	ZBX_UNUSED(error);
+	ZBX_UNUSED(maxerrlen);
+
+	/* error message in substitution is being ignored */
+	zbx_substitute_macros(data, NULL, 0, macro_http_raw_resolv, um_handle, dc_host, dc_item);
+
+	return SUCCEED;
+}
+
 void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESULT *results,
 		unsigned char expand_macros)
 {
 	char			error[ZBX_ITEM_ERROR_LEN_MAX], *timeout = NULL;
-	zbx_dc_um_handle_t	*um_handle;
+	zbx_dc_um_handle_t	*um_handle, *um_handle_secure;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() num:%d", __func__, num);
 
 	if (ZBX_MACRO_EXPAND_YES == expand_macros)
-		um_handle = zbx_dc_open_user_macros();
+	{
+		um_handle = zbx_dc_open_user_macros_masked();
+		um_handle_secure = zbx_dc_open_user_macros_secure();
+	}
 
 	for (int i = 0; i < num; i++)
 	{
@@ -363,7 +465,7 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 		if (ZBX_MACRO_EXPAND_YES == expand_macros)
 		{
 			ZBX_STRDUP(items[i].key, items[i].key_orig);
-			if (SUCCEED != zbx_substitute_key_macros_unmasked(&items[i].key, NULL, &items[i], NULL, NULL,
+			if (SUCCEED != zbx_substitute_key_macros_unmasked(&items[i].key, NULL, &items[i],
 					ZBX_MACRO_TYPE_ITEM_KEY, error, sizeof(error)))
 			{
 				SET_MSG_RESULT(&results[i], zbx_strdup(NULL, error));
@@ -469,9 +571,16 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 
 				zbx_substitute_simple_macros(NULL, NULL, NULL, NULL, &items[i].host.hostid, NULL, NULL,
 						NULL, NULL, NULL, NULL, NULL, &timeout, ZBX_MACRO_TYPE_COMMON, NULL, 0);
-				zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL, NULL, NULL, NULL, &items[i],
-						NULL, NULL, NULL, NULL, NULL, &items[i].script_params,
-						ZBX_MACRO_TYPE_SCRIPT_PARAMS_FIELD, NULL, 0);
+				for (int j = 0; j < items[i].script_params.values_num; j++)
+				{
+					zbx_substitute_macros((char **)&items[i].script_params.values[j].first, NULL,
+							0, zbx_macro_script_params_field_resolv, um_handle_secure,
+							&items[i]);
+					zbx_substitute_macros((char **)&items[i].script_params.values[j].second, NULL,
+							0, zbx_macro_script_params_field_resolv, um_handle_secure,
+							&items[i]);
+				}
+
 				zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL, NULL, &items[i].host.hostid,
 						NULL, NULL, NULL, NULL, NULL, NULL, NULL, &items[i].params,
 						ZBX_MACRO_TYPE_COMMON, NULL, 0);
@@ -495,9 +604,8 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 				if (ZBX_MACRO_EXPAND_NO == expand_macros)
 					break;
 
-				zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL, NULL, NULL, NULL, &items[i],
-						NULL, NULL, NULL, NULL, NULL, &items[i].params,
-						ZBX_MACRO_TYPE_PARAMS_FIELD, NULL, 0);
+				zbx_substitute_macros(&items[i].params, NULL, 0, zbx_macro_field_params_resolv,
+						um_handle_secure, &items[i]);
 				ZBX_FALLTHROUGH;
 			case ITEM_TYPE_SIMPLE:
 				if (ZBX_MACRO_EXPAND_NO == expand_macros)
@@ -551,9 +659,8 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 							NULL, NULL, NULL, NULL, NULL, NULL, NULL, &timeout,
 							ZBX_MACRO_TYPE_COMMON, NULL, 0);
 
-					zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL, NULL, NULL,
-							&items[i].host, &items[i], NULL, NULL, NULL, NULL, NULL,
-							&items[i].url, ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+					zbx_substitute_macros(&items[i].url, NULL, 0, macro_http_raw_resolv,
+							um_handle_secure, &items[i].host, &items[i]);
 				}
 
 				if (SUCCEED != zbx_http_punycode_encode_url(&items[i].url))
@@ -579,8 +686,9 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 				switch (items[i].post_type)
 				{
 					case ZBX_POSTTYPE_XML:
-						if (SUCCEED != zbx_substitute_macros_xml_unmasked(&items[i].posts,
-								&items[i], NULL, NULL, error, sizeof(error)))
+						if (SUCCEED != zbx_xml_traverse(&items[i].posts, error, sizeof(error),
+								item_resolver, um_handle_secure, &items[i].host,
+								&items[i]))
 						{
 							SET_MSG_RESULT(&results[i], zbx_dsprintf(NULL, "%s.", error));
 							errcodes[i] = CONFIG_ERROR;
@@ -589,32 +697,27 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 						}
 						break;
 					case ZBX_POSTTYPE_JSON:
-						zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL,NULL, NULL,
-								&items[i].host, &items[i], NULL, NULL, NULL, NULL, NULL,
-								&items[i].posts, ZBX_MACRO_TYPE_HTTP_JSON, NULL, 0);
+						zbx_substitute_macros(&items[i].posts, NULL, 0, macro_http_json_resolv,
+							um_handle_secure, &items[i].host, &items[i]);
 						break;
 					default:
-						zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL,NULL, NULL,
-								&items[i].host, &items[i], NULL, NULL, NULL, NULL, NULL,
-								&items[i].posts, ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+						zbx_substitute_macros(&items[i].posts, NULL, 0, macro_http_raw_resolv,
+							um_handle_secure, &items[i].host, &items[i]);
 						break;
 				}
 
-				zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL,NULL, NULL, &items[i].host,
-						&items[i], NULL, NULL, NULL, NULL, NULL, &items[i].headers,
-						ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+				zbx_substitute_macros(&items[i].headers, NULL, 0, macro_http_raw_resolv,
+							um_handle_secure, &items[i].host, &items[i]);
 				zbx_substitute_simple_macros(NULL, NULL, NULL, NULL, &items[i].host.hostid, NULL,
 						NULL, NULL, NULL, NULL, NULL, NULL, &items[i].status_codes,
 						ZBX_MACRO_TYPE_COMMON, NULL, 0);
 				zbx_substitute_simple_macros(NULL, NULL, NULL, NULL, &items[i].host.hostid, NULL,
 						NULL, NULL, NULL, NULL, NULL, NULL, &items[i].http_proxy,
 						ZBX_MACRO_TYPE_COMMON, NULL, 0);
-				zbx_substitute_simple_macros(NULL, NULL, NULL,NULL, NULL, &items[i].host, &items[i],
-						NULL, NULL, NULL, NULL, NULL, &items[i].ssl_cert_file,
-						ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
-				zbx_substitute_simple_macros(NULL, NULL, NULL,NULL, NULL, &items[i].host, &items[i],
-						NULL, NULL, NULL, NULL, NULL, &items[i].ssl_key_file,
-						ZBX_MACRO_TYPE_HTTP_RAW, NULL, 0);
+				zbx_substitute_macros(&items[i].ssl_cert_file, NULL, 0, macro_http_raw_resolv,
+							um_handle, &items[i].host, &items[i]);
+				zbx_substitute_macros(&items[i].ssl_key_file, NULL, 0, macro_http_raw_resolv,
+							um_handle, &items[i].host, &items[i]);
 				zbx_substitute_simple_macros_unmasked(NULL, NULL, NULL, NULL, &items[i].host.hostid,
 						NULL, NULL, NULL, NULL, NULL, NULL, NULL, &items[i].ssl_key_password,
 						ZBX_MACRO_TYPE_COMMON, NULL, 0);
@@ -643,7 +746,10 @@ void	zbx_prepare_items(zbx_dc_item_t *items, int *errcodes, int num, AGENT_RESUL
 	}
 
 	if (ZBX_MACRO_EXPAND_YES == expand_macros)
+	{
+		zbx_dc_close_user_macros(um_handle_secure);
 		zbx_dc_close_user_macros(um_handle);
+	}
 
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
@@ -961,8 +1067,6 @@ ZBX_THREAD_ENTRY(zbx_poller_thread, args)
 
 	scriptitem_es_engine_init();
 
-	zbx_get_program_type_cb = poller_args_in->zbx_get_program_type_cb_arg;
-	zbx_get_progname_cb = poller_args_in->zbx_get_progname_cb_arg;
 #if defined(HAVE_GNUTLS) || defined(HAVE_OPENSSL)
 	zbx_tls_init_child(poller_args_in->config_comms->config_tls,
 			poller_args_in->zbx_get_program_type_cb_arg, zbx_dc_get_psk_by_identity);
@@ -1001,7 +1105,7 @@ ZBX_THREAD_ENTRY(zbx_poller_thread, args)
 					poller_args_in->config_startup_time, poller_args_in->config_unavailable_delay,
 					poller_args_in->config_unreachable_period,
 					poller_args_in->config_unreachable_delay, info->program_type,
-					poller_args_in->zbx_get_progname_cb_arg(), poller_args_in->get_config_forks,
+					poller_args_in->progname, poller_args_in->get_config_forks,
 					poller_args_in->config_java_gateway, poller_args_in->config_java_gateway_port,
 					poller_args_in->config_externalscripts,
 					poller_args_in->zbx_get_value_internal_ext_cb,

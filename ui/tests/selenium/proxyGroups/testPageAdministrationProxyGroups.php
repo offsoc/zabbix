@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,8 +14,8 @@
 **/
 
 
-require_once dirname(__FILE__) . '/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
+require_once __DIR__ . '/../../include/CWebTest.php';
+require_once __DIR__.'/../../include/helpers/CDataHelper.php';
 
 /**
  * Test for checking Proxy groups page.
@@ -76,12 +76,11 @@ class testPageAdministrationProxyGroups extends CWebTest {
 		);
 
 		// Check filter collapse/expand.
-		$filter_tab = $filter_form->query('xpath://div[contains(@class, "ui-tabs-panel")]')->one();
-		$filter_button = $this->query('xpath://a[contains(@class, "filter-trigger")]')->one();
+		$filter = CFilterElement::find()->one();
 
-		foreach ([true, false] as $visible) {
-			$this->assertEquals($visible, $filter_tab->isDisplayed());
-			$filter_button->click();
+		foreach ([false, true] as $visible) {
+			$filter->expand($visible);
+			$this->assertTrue($filter->isExpanded($visible));
 		}
 
 		$table = $this->query('class:list-table')->asTable()->one()->waitUntilPresent();

@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -15,7 +15,7 @@
 
 
 require_once 'vendor/autoload.php';
-require_once dirname(__FILE__).'/../CElement.php';
+require_once __DIR__.'/../CElement.php';
 
 /**
  * Dashboard widget element.
@@ -107,7 +107,7 @@ class CWidgetElement extends CElement {
 
 			try {
 				// TODO: fix formatting after git-hook improvements DEV-2396.
-				return $this->query('xpath://div[@data-dialogueid="widget_properties"]//form')->waitUntilVisible()
+				return $this->query('xpath://div[@data-dialogueid="widget_form"]//form')->waitUntilVisible()
 						->asForm()->one();
 			}
 			catch (\Exception $e) {

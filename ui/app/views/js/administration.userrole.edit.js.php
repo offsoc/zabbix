@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -127,7 +127,9 @@
 				CRoleHelper::ACTIONS_EXECUTE_SCRIPTS => USER_TYPE_ZABBIX_USER,
 				CRoleHelper::ACTIONS_MANAGE_API_TOKENS => USER_TYPE_ZABBIX_USER,
 				CRoleHelper::ACTIONS_MANAGE_SCHEDULED_REPORTS => USER_TYPE_ZABBIX_ADMIN,
-				CRoleHelper::ACTIONS_MANAGE_SLA => USER_TYPE_ZABBIX_ADMIN
+				CRoleHelper::ACTIONS_MANAGE_SLA => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::ACTIONS_EDIT_OWN_MEDIA => USER_TYPE_ZABBIX_USER,
+				CRoleHelper::ACTIONS_EDIT_USER_MEDIA => USER_TYPE_SUPER_ADMIN
 			], JSON_FORCE_OBJECT) ?>;
 
 			for (const [id, value] of Object.entries(access_min)) {
@@ -227,7 +229,7 @@
 			const overlay = PopUp('popup.services', {
 				title: <?= json_encode(_('Add services')) ?>,
 				exclude_serviceids
-			}, {dialogueid: 'services', dialogue_class: 'modal-popup-generic'});
+			}, {dialogueid: 'services'});
 
 			overlay.$dialogue[0].addEventListener('dialogue.submit', (e) => {
 				const data = [];

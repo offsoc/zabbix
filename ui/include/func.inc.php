@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -124,51 +124,6 @@ function getDayOfWeekCaption($num) {
 	return _s('[Wrong value for day: "%1$s" ]', $num);
 }
 
-// Convert seconds (0..SEC_PER_WEEK) to string representation. For example, 212400 -> 'Tuesday 11:00'
-function dowHrMinToStr($value, $display24Hours = false) {
-	$dow = $value - $value % SEC_PER_DAY;
-	$hr = $value - $dow;
-	$hr -= $hr % SEC_PER_HOUR;
-	$min = $value - $dow - $hr;
-	$min -= $min % SEC_PER_MIN;
-
-	$dow /= SEC_PER_DAY;
-	$hr /= SEC_PER_HOUR;
-	$min /= SEC_PER_MIN;
-
-	if ($display24Hours && $hr == 0 && $min == 0) {
-		$dow--;
-		$hr = 24;
-	}
-
-	return sprintf('%s %02d:%02d', getDayOfWeekCaption($dow), $hr, $min);
-}
-
-// Convert Day Of Week, Hours and Minutes to seconds representation. For example, 2 11:00 -> 212400. false if error occurred
-function dowHrMinToSec($dow, $hr, $min) {
-	if (zbx_empty($dow) || zbx_empty($hr) || zbx_empty($min) || !zbx_ctype_digit($dow) || !zbx_ctype_digit($hr) || !zbx_ctype_digit($min)) {
-		return false;
-	}
-
-	if ($dow == 7) {
-		$dow = 0;
-	}
-
-	if ($dow < 0 || $dow > 6) {
-		return false;
-	}
-
-	if ($hr < 0 || $hr > 24) {
-		return false;
-	}
-
-	if ($min < 0 || $min > 59) {
-		return false;
-	}
-
-	return $dow * SEC_PER_DAY + $hr * SEC_PER_HOUR + $min * SEC_PER_MIN;
-}
-
 /**
  * Convert time to a string representation. Return 'Never' if timestamp is 0.
  *
@@ -180,7 +135,7 @@ function dowHrMinToSec($dow, $hr, $min) {
  *
  * @return string
  */
-function zbx_date2str($format, $time = null, string $timezone = null) {
+function zbx_date2str($format, $time = null, ?string $timezone = null) {
 	static $weekdaynames, $weekdaynameslong, $months, $monthslong;
 
 	if ($time === null) {
@@ -191,14 +146,7 @@ function zbx_date2str($format, $time = null, string $timezone = null) {
 		return _('Never');
 	}
 
-	if ($time > ZBX_MAX_DATE) {
-		$prefix = '> ';
-		$datetime = new DateTime('@'.ZBX_MAX_DATE);
-	}
-	else {
-		$prefix = '';
-		$datetime = new DateTime('@'.(int) $time);
-	}
+	$datetime = new DateTime(sprintf('@%f', (float) $time));
 
 	$datetime->setTimezone(new DateTimeZone($timezone ?? date_default_timezone_get()));
 
@@ -283,7 +231,7 @@ function zbx_date2str($format, $time = null, string $timezone = null) {
 		}
 	}
 
-	return $prefix.$output;
+	return $output;
 }
 
 /**
@@ -959,42 +907,6 @@ function zbx_array_diff(array $primary, array $secondary, $field) {
 	return $result;
 }
 
-function zbx_array_push(&$array, $add) {
-	foreach ($array as $key => $value) {
-		foreach ($add as $newKey => $newValue) {
-			$array[$key][$newKey] = $newValue;
-		}
-	}
-}
-
-/**
- * Find if array has any duplicate values and return an array with info about them.
- * In case of no duplicates, empty array is returned.
- * Example of usage:
- *     $result = zbx_arrayFindDuplicates(
- *         array('a', 'b', 'c', 'c', 'd', 'd', 'd', 'e')
- *     );
- *     array(
- *         'd' => 3,
- *         'c' => 2,
- *     )
- *
- * @param array $array
- *
- * @return array
- */
-function zbx_arrayFindDuplicates(array $array) {
-	$countValues = array_count_values($array); // counting occurrences of every value in array
-	foreach ($countValues as $value => $count) {
-		if ($count <= 1) {
-			unset($countValues[$value]);
-		}
-	}
-	arsort($countValues); // sorting, so that the most duplicates would be at the top
-
-	return $countValues;
-}
-
 /************* STRING *************/
 function zbx_nl2br($str) {
 	$str_res = [];
@@ -1331,18 +1243,6 @@ function zbx_objectValues($value, $field) {
 	return $result;
 }
 
-function zbx_cleanHashes(&$value) {
-	if (is_array($value)) {
-		// reset() is needed to move internal array pointer to the beginning of the array
-		reset($value);
-		if (zbx_ctype_digit(key($value))) {
-			$value = array_values($value);
-		}
-	}
-
-	return $value;
-}
-
 function zbx_toCSV($values) {
 	$csv = '';
 	$glue = '","';
@@ -1440,21 +1340,6 @@ function make_sorting_header($obj, $tabfield, $sortField, $sortOrder, $link = nu
 }
 
 /**
- * Get decimal point and thousands separator for number formatting according to the current locale.
- *
- * @return array  'decimal_point' and 'thousands_sep' values.
- */
-function getNumericFormatting(): array {
-	static $numeric_formatting = null;
-
-	if ($numeric_formatting === null) {
-		$numeric_formatting = array_intersect_key(localeconv(), array_flip(['decimal_point', 'thousands_sep']));
-	}
-
-	return $numeric_formatting;
-}
-
-/**
  * Format floating-point number in the best possible way for displaying.
  *
  * @param float $number   Valid number in decimal or scientific notation.
@@ -1549,36 +1434,23 @@ function formatFloat(float $number, array $options = []): string {
 		return '0';
 	}
 
-	[
-		'decimal_point' => $decimal_point,
-		'thousands_sep' => $thousands_sep
-	] = getNumericFormatting();
-
 	$exponent = (int) explode('E', sprintf('%.'.($precision - 1).'E', $number))[1];
 
 	if ($exponent < 0) {
 		if (!$small_scientific
 				|| $digits - $exponent <= ($decimals_exact ? min($decimals + 1, $precision) : $precision)) {
-			return number_format($number, $decimals_exact ? $decimals : $digits - $exponent - 1, $decimal_point,
-				$thousands_sep
-			);
+			return number_format($number, $decimals_exact ? $decimals : $digits - $exponent - 1, '.', '');
 		}
 		else {
-			return str_replace('.', $decimal_point,
-				sprintf('%.'.($decimals_exact ? $decimals : min($digits - 1, $decimals)).'E', $number)
-			);
+			return sprintf('%.'.($decimals_exact ? $decimals : min($digits - 1, $decimals)).'E', $number);
 		}
 	}
 	elseif ($exponent >= min(PHP_FLOAT_DIG, $precision + 3)
 			|| ($exponent >= $precision && $number != $number_original)) {
-		return str_replace('.', $decimal_point,
-			sprintf('%.'.($decimals_exact ? $decimals : min($digits - 1, $decimals)).'E', $number)
-		);
+		return sprintf('%.'.($decimals_exact ? $decimals : min($digits - 1, $decimals)).'E', $number);
 	}
 	else {
-		return number_format($number, $decimals_exact ? $decimals : max(0, min($digits - $exponent - 1, $decimals)),
-			$decimal_point, $thousands_sep
-		);
+		return number_format($number, $decimals_exact ? $decimals : max(0, min($digits - $exponent - 1, $decimals)), '.', '');
 	}
 }
 
@@ -1764,7 +1636,7 @@ function detect_page_type($default = PAGE_TYPE_HTML) {
  *
  * @return CTag
  */
-function makeMessageBox(string $class, array $messages, string $title = null, bool $show_close_box = true,
+function makeMessageBox(string $class, array $messages, ?string $title = null, bool $show_close_box = true,
 		bool $show_details = false): CTag {
 
 	$aria_labels = [
@@ -1865,7 +1737,7 @@ function filter_messages(): array {
  *
  * @return CTag|null
  */
-function getMessages(bool $good = false, string $title = null, bool $show_close_box = true): ?CTag {
+function getMessages(bool $good = false, ?string $title = null, bool $show_close_box = true): ?CTag {
 	$messages = get_and_clear_messages();
 
 	$message_box = ($title || $messages)

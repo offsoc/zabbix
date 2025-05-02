@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,7 +13,7 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../include/CBehavior.php';
+require_once __DIR__.'/../../include/CBehavior.php';
 
 /**
  * Behavior for global messages.
@@ -31,13 +31,13 @@ class CMessageBehavior extends CBehavior {
 		$message = CMessageElement::find()->waitUntilVisible()->one();
 
 		if ($expected === TEST_GOOD) {
-			$message->isGood();
+			$this->test->assertTrue($message->isGood());
 		}
 		elseif ($expected === TEST_BAD) {
-			$message->isBad();
+			$this->test->assertTrue($message->isBad());
 		}
 		else {
-			$message->isWarning();
+			$this->test->assertTrue($message->isWarning());
 		}
 
 		if ($title !== null) {

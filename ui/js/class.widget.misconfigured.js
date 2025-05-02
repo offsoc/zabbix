@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -15,26 +15,14 @@
 
 class CWidgetMisconfigured extends CWidget {
 
+	static MESSAGE_TYPE_NOT_CONFIGURED = 'not-configured';
 	static MESSAGE_TYPE_EMPTY_REFERENCES = 'empty-references';
-
-	#messages = [];
 
 	#message_type = null;
 
 	onStart() {
-		if (this.#messages.length > 0) {
-			this._updateMessages(this.#messages);
-		}
-		else if (this.#message_type !== null) {
+		if (this.#message_type !== null) {
 			this.setCoverMessage(CWidgetMisconfigured.#getMessageTypeInfo(this.#message_type));
-		}
-	}
-
-	setMessages(messages) {
-		this.#messages = messages;
-
-		if (this.getState() !== WIDGET_STATE_INITIAL) {
-			this._updateMessages(this.#messages);
 		}
 	}
 
@@ -46,8 +34,19 @@ class CWidgetMisconfigured extends CWidget {
 		}
 	}
 
+	getMessageType() {
+		return this.#message_type;
+	}
+
 	static #getMessageTypeInfo(message_type) {
 		switch (message_type) {
+			case CWidgetMisconfigured.MESSAGE_TYPE_NOT_CONFIGURED:
+				return {
+					message: t('Widget is not fully configured'),
+					description: t('Please update configuration'),
+					icon: ZBX_ICON_WIDGET_NOT_CONFIGURED_LARGE
+				};
+
 			case CWidgetMisconfigured.MESSAGE_TYPE_EMPTY_REFERENCES:
 				return {
 					message: t('Referred widget is unavailable'),

@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,10 +14,10 @@
 **/
 
 
-require_once dirname(__FILE__) . '/../include/CWebTest.php';
-require_once dirname(__FILE__).'/common/testFormPreprocessing.php';
-require_once dirname(__FILE__).'/../include/helpers/CDataHelper.php';
-require_once dirname(__FILE__).'/behaviors/CPreprocessingBehavior.php';
+require_once __DIR__ . '/../include/CWebTest.php';
+require_once __DIR__.'/common/testFormPreprocessing.php';
+require_once __DIR__.'/../include/helpers/CDataHelper.php';
+require_once __DIR__.'/behaviors/CPreprocessingBehavior.php';
 
 /**
  * @dataSource Services, EntitiesTags
@@ -118,8 +118,9 @@ class testFormTabIndicators extends CWebTest {
 			// #1 Host configuration form tab data.
 			[
 				[
-					'url' => 'zabbix.php?action=host.edit',
+					'url' => 'zabbix.php?action=host.list',
 					'form' => 'id:host-form',
+					'create_button' => 'Create host',
 					'tabs' => [
 						[
 							'name' => 'Tags',
@@ -582,7 +583,7 @@ class testFormTabIndicators extends CWebTest {
 			[
 				[
 					'url' => 'zabbix.php?action=dashboard.view',
-					'form' => 'id:widget-dialogue-form',
+					'form' => 'id:widget-form',
 					'widget_type' => 'Graph',
 					'close_dialog' => true,
 					'tabs' => [
@@ -645,7 +646,7 @@ class testFormTabIndicators extends CWebTest {
 			[
 				[
 					'url' => 'zabbix.php?action=dashboard.view',
-					'form' => 'id:widget-dialogue-form',
+					'form' => 'id:widget-form',
 					'widget_type' => 'Pie chart',
 					'close_dialog' => true,
 					'tabs' => [
@@ -709,8 +710,8 @@ class testFormTabIndicators extends CWebTest {
 			// #16 User profile configuration form tab data.
 			[
 				[
-					'url' => 'zabbix.php?action=userprofile.edit',
-					'form' => 'name:user_form',
+					'url' => 'zabbix.php?action=userprofile.notification.edit',
+					'form' => 'id:userprofile-notification-form',
 					'tabs' => [
 						[
 							'name' => 'Media',
@@ -744,6 +745,9 @@ class testFormTabIndicators extends CWebTest {
 
 	/**
 	 * @dataProvider getTabData
+	 *
+	 * TODO: remove ignoreBrowserErrors after DEV-4233
+	 * @ignoreBrowserErrors
 	 */
 	public function testFormTabIndicators_CheckGeneralForms($data) {
 		$this->page->login()->open($data['url'])->waitUntilReady();
@@ -802,7 +806,12 @@ class testFormTabIndicators extends CWebTest {
 		}
 
 		if (CTestArrayHelper::get($data, 'close_dialog')) {
-			COverlayDialogElement::find()->one()->waitUntilReady()->close();
+			$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
+			$dialog->query('class:btn-overlay-close')->one()->click();
+			if (CTestArrayHelper::get($data, 'widget_type', false)) {
+				$this->page->acceptAlert();
+			}
+			$dialog->ensureNotPresent();
 		}
 	}
 

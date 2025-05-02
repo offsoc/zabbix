@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -22,5 +22,7 @@ void	mock_eval_read_values(zbx_eval_context_t *ctx, const char *path);
 
 void	mock_compare_stack(const zbx_eval_context_t *ctx, const char *path);
 void	mock_dump_stack(const zbx_eval_context_t *ctx);
+int	compare_vectors_uint64(zbx_vector_uint64_t *v1, zbx_vector_uint64_t *v2);
+int	compare_ctx(zbx_eval_context_t *ctx1, zbx_eval_context_t *ctx2);
 
 #endif

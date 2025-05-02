@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,15 +14,15 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
-require_once dirname(__FILE__).'/../common/testWidgets.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../common/testWidgets.php';
 
 /**
  * Test for checking Item Value Widget.
  *
- * @backup dashboard
+ * @backup dashboard, globalmacro
  *
  * @dataSource WebScenarios, AllItemValueTypes, ItemValueWidget
  *
@@ -51,6 +51,8 @@ class testDashboardItemValueWidget extends testWidgets {
 	const DASHBOARD_THRESHOLD = 'Dashboard for threshold(s) check';
 	const DASHBOARD_AGGREGATION = 'Dashboard for aggregation function data check';
 	const DATA_WIDGET = 'Widget for aggregation function data check';
+	const MACRO_FUNCTION_WIDGET = 'Widget for macro function check';
+	const INDICATOR_CHANGE_HOST = 'Host for checking widget without show value option';
 
 	/**
 	 * Get threshold table element with mapping set.
@@ -77,6 +79,52 @@ class testDashboardItemValueWidget extends testWidgets {
 	public static function prepareData() {
 		self::$dashboardids = CDataHelper::get('ItemValueWidget.dashboardids');
 		self::$itemids = CDataHelper::get('ItemValueWidget.itemids');
+
+		// Add 2 values of data for items, to check that there are no errors without show value option selected.
+		$items_data = [
+			'Indicator - Numeric (float)' => 0.1,
+			'Indicator - Character' => 1,
+			'Indicator - Numeric (unsigned)' => 1,
+			'Indicator - Text' => 1,
+			'Indicator - Log' => 1
+		];
+
+		foreach ($items_data as $name => $value) {
+			CDataHelper::addItemData(self::$itemids[$name], $value, time());
+			CDataHelper::addItemData(self::$itemids[$name], $value + 1, time() + 1);
+		}
+
+		CDataHelper::call('usermacro.createglobal', [
+			[
+				'macro' => self::USER_MACRO,
+				'value' => self::USER_MACRO_VALUE
+			],
+			[
+				'macro' => self::USER_SECRET_MACRO,
+				'type' => 1,
+				'value' => self::USER_MACRO_VALUE
+			],
+			[
+				'macro' => self::MACRO_CHAR,
+				'value' => self::MACRO_CHAR_VALUE
+			],
+			[
+				'macro' => self::MACRO_HTML_ENCODE,
+				'value' => self::MACRO_HTML_ENCODE_VALUE
+			],
+			[
+				'macro' => self::MACRO_HTML_DECODE,
+				'value' => self::MACRO_HTML_DECODE_VALUE
+			],
+			[
+				'macro' => self::MACRO_URL_ENCODE,
+				'value' => self::MACRO_URL_ENCODE_VALUE
+			],
+			[
+				'macro' => self::MACRO_URL_DECODE,
+				'value' => self::MACRO_URL_DECODE_VALUE
+			]
+		]);
 	}
 
 	/**
@@ -100,12 +148,16 @@ class testDashboardItemValueWidget extends testWidgets {
 			'id:show_2' => true, // Value.
 			'id:show_3' => true, // Time.
 			'id:show_4' => true, // Change indicator.
+			'id:show_5' => false, // Sparkline.
 			'Advanced configuration' => false,
 			'id:override_hostid_ms' => ''
 		];
 		foreach ($default_values as $field => $value) {
 			$this->assertEquals($value, $form->getField($field)->getValue());
 		}
+
+		// Show Sparkline fields.
+		$form->fill(['id:show_5' => true]);
 
 		// Check checkboxes dependency on Advanced configuration checkbox.
 		$description = [
@@ -114,7 +166,7 @@ class testDashboardItemValueWidget extends testWidgets {
 			'id:desc_v_pos',
 			'id:desc_size',
 			'id:desc_bold',
-			'xpath://input[@id="desc_color"]/..'
+			'xpath:.//input[@id="desc_color"]/..'
 		];
 
 		$values = [
@@ -124,7 +176,7 @@ class testDashboardItemValueWidget extends testWidgets {
 			'id:value_size',
 			'id:value_v_pos',
 			'id:value_bold',
-			'xpath://input[@id="value_color"]/..'
+			'xpath:.//input[@id="value_color"]/..'
 		];
 
 		$units = [
@@ -132,7 +184,7 @@ class testDashboardItemValueWidget extends testWidgets {
 			'id:units_pos',
 			'id:units_size',
 			'id:units_bold',
-			'xpath://input[@id="units_color"]/..'
+			'xpath:.//input[@id="units_color"]/..'
 		];
 
 		$time = [
@@ -140,17 +192,27 @@ class testDashboardItemValueWidget extends testWidgets {
 			'id:time_v_pos',
 			'id:time_size',
 			'id:time_bold',
-			'xpath://input[@id="time_color"]/..'
+			'xpath:.//input[@id="time_color"]/..'
 		];
 
 		$indicator_colors = [
-			'xpath://input[@id="up_color"]/..',
-			'xpath://input[@id="down_color"]/..',
-			'xpath://input[@id="updown_color"]/..'
+			'xpath:.//input[@id="up_color"]/..',
+			'xpath:.//input[@id="down_color"]/..',
+			'xpath:.//input[@id="updown_color"]/..'
+		];
+
+		$sparkline = [
+			'id:sparkline_width',
+			'id:sparkline_fill',
+			'xpath:.//input[@id="sparkline_color"]/..',
+			'id:sparkline_time_period_data_source',
+			'id:sparkline_time_period_from',
+			'id:sparkline_time_period_to',
+			'id:sparkline_history'
 		];
 
 		// Merge all Advanced fields into one array.
-		$fields = array_merge($description, $values, $units, $time, $indicator_colors, ['Background colour']);
+		$fields = array_merge($description, $values, $units, $time, $indicator_colors, $sparkline, ['Background colour']);
 
 		foreach ([false, true] as $advanced_config) {
 			$form->fill(['Advanced configuration' => $advanced_config]);
@@ -164,6 +226,9 @@ class testDashboardItemValueWidget extends testWidgets {
 			foreach ($fields as $field) {
 				$this->assertTrue($form->getField($field)->isVisible($advanced_config));
 			}
+
+			// Check that reference widget multiselect is not visible by default.
+			$this->assertFalse($form->query('xpath:.//div[@id="sparkline_time_period_reference"]')->one()->isDisplayed());
 
 			// Check advanced fields when Advanced configuration is true.
 			if ($advanced_config) {
@@ -199,6 +264,18 @@ class testDashboardItemValueWidget extends testWidgets {
 					'Position' => 'After value',
 					'id:units_size' => 35,
 					'id:units_bold' => true,
+					'id:time_h_pos' => 'Center',
+					'id:time_v_pos' => 'Top',
+					'id:time_size' => 15,
+					'id:time_bold' => false,
+					'id:sparkline_width' => 1,
+					'id:sparkline_fill' => 3,
+					'id:sparkline_color' => '42A5F5',
+					'id:sparkline_time_period_data_source' => 'Custom',
+					'id:sparkline_time_period_reference' => '',
+					'id:sparkline_time_period_from' => 'now-1h',
+					'id:sparkline_time_period_to' => 'now',
+					'id:sparkline_history' => 'Auto',
 					'Aggregation function' => 'not used',
 					'Time period' => 'Dashboard',
 					'id:time_period_reference' => '',
@@ -206,9 +283,23 @@ class testDashboardItemValueWidget extends testWidgets {
 					'id:time_period_to' => 'now',
 					'History data' => 'Auto'
 				];
-
 				foreach ($default_values_advanced as $field => $value) {
 					$this->assertEquals($value, $form->getField($field)->getValue());
+				}
+
+				foreach (['id:sparkline_width', 'id:sparkline_fill'] as $id) {
+					$this->assertRangeSliderParameters($form, $id, ['min' => '0', 'max' => '10', 'step' => '1']);
+				}
+
+				// Aggregation fields are defined by label name and are visible only when aggregation function is selected.
+				$radio_buttons = [
+					'id:sparkline_time_period_data_source' => ['Dashboard', 'Widget', 'Custom'],
+					'id:sparkline_history' => ['Auto', 'History', 'Trends'],
+					'Time period' => ['Dashboard', 'Widget', 'Custom'],
+					'History data' => ['Auto', 'History', 'Trends']
+				];
+				foreach ($radio_buttons as $locator => $labels) {
+					$this->assertEquals($labels, $form->getField($locator)->getLabels()->asText());
 				}
 
 				// Check Thresholds table.
@@ -230,8 +321,13 @@ class testDashboardItemValueWidget extends testWidgets {
 				$hint_dialog->waitUntilNotPresent();
 
 				// Check required fields with selected widget time period.
-				$form->fill(['Aggregation function' => 'min', 'Time period' => 'Widget']);
+				$form->fill(['Aggregation function' => 'min', 'id:sparkline_time_period_data_source' => 'Widget', 'Time period' => 'Widget']);
 				$this->assertEquals(['Item', 'Show', 'Description', 'Widget'], $form->getRequiredLabels());
+
+				// Check sparkline required field with selected widget time period.
+				$this->assertTrue($form->query('xpath:.//label[@for="sparkline_time_period_reference_ms"]')
+						->one()->hasClass('form-label-asterisk')
+				);
 
 				// Check warning and hintbox message.
 				$warning_visibility = [
@@ -313,6 +409,24 @@ class testDashboardItemValueWidget extends testWidgets {
 					'id:time_size' => [
 						'maxlength' => 3
 					],
+					'id:sparkline_width' => [
+						'maxlength' => 2
+					],
+					'id:sparkline_fill' => [
+						'maxlength' => 2
+					],
+					// Sparkline widget multiselect field relative xpath.
+					'xpath:.//div[@id="sparkline_time_period_reference"]/input' => [
+						'placeholder' => 'type here to search'
+					],
+					'id:sparkline_time_period_from' => [
+						'maxlength' => 255,
+						'placeholder' => 'YYYY-MM-DD hh:mm:ss'
+					],
+					'id:sparkline_time_period_to' => [
+						'maxlength' => 255,
+						'placeholder' => 'YYYY-MM-DD hh:mm:ss'
+					],
 					'id:thresholds_0_threshold' => [
 						'maxlength' => 255
 					],
@@ -347,8 +461,12 @@ class testDashboardItemValueWidget extends testWidgets {
 				}
 
 				// Check required fields with selected Custom time period.
-				$form->fill(['Aggregation function' => 'min', 'Time period' => 'Custom']);
+				$form->fill(['Aggregation function' => 'min', 'id:sparkline_time_period_data_source' => 'Custom', 'Time period' => 'Custom']);
 				$this->assertEquals(['Item', 'Show', 'Description', 'From', 'To'], $form->getRequiredLabels());
+
+				foreach (['sparkline_time_period_from', 'sparkline_time_period_to'] as $element) {
+					$this->assertTrue($form->query('xpath:.//label[@for="'.$element.'"]')->one()->hasClass('form-label-asterisk'));
+				}
 
 				// Check fields editability depending on "Show" checkboxes.
 				$config_editability = [
@@ -356,7 +474,8 @@ class testDashboardItemValueWidget extends testWidgets {
 					'id:show_2' => $values,
 					'id:units_show' => $units,
 					'id:show_3' => $time,
-					'id:show_4' => $indicator_colors
+					'id:show_4' => $indicator_colors,
+					'id:show_5' => $sparkline
 				];
 
 				foreach ($config_editability as $config => $elements) {
@@ -423,7 +542,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:show_1' => false, // Description.
 						'id:show_2' => false, // Value.
 						'id:show_3' => false, // Time.
-						'id:show_4' => false // Change indicator.
+						'id:show_4' => false, // Change indicator.
+						'id:show_5' => false // Sparkline.
 					],
 					'item' => [
 						'ЗАББИКС Сервер' => 'Available memory in %'
@@ -765,7 +885,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true, // Sparkline.
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => 'now-58s',
 						'Aggregation function' => 'min',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'now-58s'
@@ -774,6 +896,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Minimum time period to display is 1 minute.',
 						'Minimum time period to display is 1 minute.'
 					]
 				]
@@ -783,7 +906,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => 'now-63158401',
 						'Aggregation function' => 'max',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'now-63158401' // 731 days and 1 second.
@@ -792,6 +917,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Maximum time period to display is {days} days.',
 						'Maximum time period to display is {days} days.'
 					],
 					'days_count' => true
@@ -802,7 +928,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => '',
 						'Aggregation function' => 'avg',
 						'Time period' => 'Custom',
 						'id:time_period_from' => ''
@@ -811,6 +939,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/From": cannot be empty.',
 						'Invalid parameter "Time period/From": cannot be empty.'
 					]
 				]
@@ -820,7 +949,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => '!',
 						'Aggregation function' => 'count',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'a'
@@ -829,6 +960,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/From": a time is expected.',
 						'Invalid parameter "Time period/From": a time is expected.'
 					]
 				]
@@ -838,7 +970,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_to' => 'now-59m-2s',
 						'Aggregation function' => 'sum',
 						'Time period' => 'Custom',
 						'id:time_period_to' => 'now-59m-2s'
@@ -847,6 +981,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Minimum time period to display is 1 minute.',
 						'Minimum time period to display is 1 minute.'
 					]
 				]
@@ -856,7 +991,10 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => 'now-7y',
+						'id:sparkline_time_period_to' => 'now-4y',
 						'Aggregation function' => 'first',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'now-4y',
@@ -866,6 +1004,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Maximum time period to display is {days} days.',
 						'Maximum time period to display is {days} days.'
 					],
 					'days_count' => true
@@ -876,7 +1015,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_to' => '',
 						'Aggregation function' => 'last',
 						'Time period' => 'Custom',
 						'id:time_period_to' => ''
@@ -885,6 +1026,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/To": cannot be empty.',
 						'Invalid parameter "Time period/To": cannot be empty.'
 					]
 				]
@@ -894,7 +1036,9 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_to' => '@',
 						'Aggregation function' => 'min',
 						'Time period' => 'Custom',
 						'id:time_period_to' => 'b'
@@ -903,6 +1047,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/To": a time is expected.',
 						'Invalid parameter "Time period/To": a time is expected.'
 					]
 				]
@@ -912,7 +1057,10 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => '🐙',
+						'id:sparkline_time_period_to' => '🐙',
 						'Aggregation function' => 'max',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'b',
@@ -922,6 +1070,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/From": a time is expected.',
+						'Invalid parameter "Sparkline: Time period/To": a time is expected.',
 						'Invalid parameter "Time period/From": a time is expected.',
 						'Invalid parameter "Time period/To": a time is expected.'
 					]
@@ -932,7 +1082,10 @@ class testDashboardItemValueWidget extends testWidgets {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
+						'id:show_5' => true,
 						'Advanced configuration' => true,
+						'id:sparkline_time_period_from' => '',
+						'id:sparkline_time_period_to' => '',
 						'Aggregation function' => 'avg',
 						'Time period' => 'Custom',
 						'id:time_period_from' => '',
@@ -942,12 +1095,68 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'error' => [
+						'Invalid parameter "Sparkline: Time period/From": cannot be empty.',
+						'Invalid parameter "Sparkline: Time period/To": cannot be empty.',
 						'Invalid parameter "Time period/From": cannot be empty.',
 						'Invalid parameter "Time period/To": cannot be empty.'
 					]
 				]
 			],
 			// #28.
+			[
+				[
+					'expected' => TEST_BAD,
+					'fields' => [
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Widget',
+						'Aggregation function' => 'min',
+						'Time period' => 'Widget'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					],
+					'error' => [
+						'Invalid parameter "Sparkline: Time period/Widget": cannot be empty.',
+						'Invalid parameter "Time period/Widget": cannot be empty.'
+					]
+				]
+			],
+			// #29.
+			[
+				[
+					'expected' => TEST_BAD,
+					'fields' => [
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'xpath:.//input[@id="sparkline_color"]/..' => 'FFFFFG'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					],
+					'error' => [
+						'Invalid parameter "Sparkline: Colour": a hexadecimal colour code (6 symbols) is expected.'
+					]
+				]
+			],
+			// #30.
+			[
+				[
+					'expected' => TEST_BAD,
+					'fields' => [
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'xpath:.//input[@id="sparkline_color"]/..' => ''
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					],
+					'error' => [
+						'Invalid parameter "Sparkline: Colour": cannot be empty.'
+					]
+				]
+			],
+			// #31.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -958,7 +1167,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #29.
+			// #32.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -971,7 +1180,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #30.
+			// #33.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -986,6 +1195,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:show_3' => true,
 						// Change indicator checkbox.
 						'id:show_4' => false,
+						// Sparkline checkbox.
+						'id:show_5' => true,
 						'Advanced configuration' => true,
 						'id:description' => 'Несколько слов. Dāži vārdi.',
 						// Description horizontal position.
@@ -1006,7 +1217,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #31.
+			// #34.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1022,6 +1233,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:show_3' => false,
 						// Change indicator checkbox.
 						'id:show_4' => true,
+						// Sparkline checkbox.
+						'id:show_5' => false,
 						'Advanced configuration' => true,
 						// Value units type.
 						'id:units' => 'Some Units',
@@ -1036,7 +1249,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #32.
+			// #35.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1051,6 +1264,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:show_3' => true,
 						// Change indicator checkbox.
 						'id:show_4' => true,
+						// Sparkline checkbox.
+						'id:show_5' => false,
 						'Advanced configuration' => true,
 						'id:description' => 'Some description here.',
 						// Description horizontal position.
@@ -1092,7 +1307,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #33.
+			// #36.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1108,6 +1323,8 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:show_3' => true,
 						// Change indicator checkbox.
 						'id:show_4' => true,
+						// Sparkline checkbox.
+						'id:show_5' => true,
 						'Advanced configuration' => true,
 						'id:units' => 'B',
 						// Value units position.
@@ -1116,20 +1333,20 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:units_size' => '99',
 						'id:units_bold' => true,
 						'Background colour' => 'FFAAAA',
-						'xpath://button[@id="lbl_desc_color"]/..' => 'AABBCC',
-						'xpath://button[@id="lbl_value_color"]/..' => 'CC11CC',
-						'xpath://button[@id="lbl_units_color"]/..' => 'BBCC55',
-						'xpath://button[@id="lbl_time_color"]/..' => '11AA00',
-						'xpath://button[@id="lbl_up_color"]/..' => '00FF00',
-						'xpath://button[@id="lbl_down_color"]/..' => 'FF0000',
-						'xpath://button[@id="lbl_updown_color"]/..' => '0000FF'
+						'xpath:.//input[@id="desc_color"]/..' => 'AABBCC',
+						'xpath:.//input[@id="value_color"]/..' => 'CC11CC',
+						'xpath:.//input[@id="units_color"]/..' => 'BBCC55',
+						'xpath:.//input[@id="time_color"]/..' => '11AA00',
+						'xpath:.//input[@id="up_color"]/..' => '00FF00',
+						'xpath:.//input[@id="down_color"]/..' => 'FF0000',
+						'xpath:.//input[@id="sparkline_color"]/..' => 'AB47BC'
 					],
 					'item' => [
 						'Simple form test host' => 'Response code for step "step 1 of scenario 1" of scenario "Template_Web_scenario".'
 					]
 				]
 			],
-			// #34.
+			// #37.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1146,7 +1363,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #35.
+			// #38.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1163,7 +1380,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #36.
+			// #39.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1185,7 +1402,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					'trim' => true
 				]
 			],
-			// #37.
+			// #40.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1200,7 +1417,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #38.
+			// #41.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1217,7 +1434,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #39.
+			// #42.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1234,7 +1451,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #40.
+			// #43.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1252,7 +1469,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #41.
+			// #44.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1270,7 +1487,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #42.
+			// #45.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1288,7 +1505,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #43.
+			// #46.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1305,12 +1522,161 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #44.
+			// #47.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Aggregation function with "Widget" time period',
+						'Advanced configuration' => true,
+						'Aggregation function' => 'min',
+						'Time period' => 'Widget',
+						'Widget' => 'Graph (classic) for time period'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #48.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Aggregation function with "Dashboard" time period',
+						'Advanced configuration' => true,
+						'Aggregation function' => 'max',
+						'Time period' => 'Dashboard'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #49.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline custom width and fill',
+						'id:show_5' => true, // Sparkline.
+						'Advanced configuration' => true,
+						'id:sparkline_width' => '10',
+						'id:sparkline_fill' => '10'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #50.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline custom width and fill 2',
+						'id:show_5' => true, // Sparkline.
+						'Advanced configuration' => true,
+						'id:sparkline_width' => '0',
+						'id:sparkline_fill' => '0'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #51.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline setup',
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Custom', // Sparkline time period.
+						'id:sparkline_time_period_from' => 'now-2h',
+						'id:sparkline_time_period_to' => 'now-1h',
+						'id:sparkline_history' => 'History' // Sparkline history data.
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #52.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline setup 2',
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Custom',
+						'id:sparkline_time_period_from' => 'now-7200',
+						'id:sparkline_time_period_to' => 'now-2400',
+						'id:sparkline_history' => 'Trends'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #53.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline setup 3',
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Custom',
+						'id:sparkline_time_period_from' => 'now-3M',
+						'id:sparkline_time_period_to' => 'now-2M',
+						'id:sparkline_history' => 'Auto'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #54.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline with "Dashboard" time period',
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Dashboard'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #55.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Sparkline with "Widget" time period',
+						'id:show_5' => true,
+						'Advanced configuration' => true,
+						'id:sparkline_time_period_data_source' => 'Widget',
+						'xpath:.//div[@id="sparkline_time_period_reference"]/..' => 'Graph (classic) for time period'
+					],
+					'item' => [
+						'ЗАББИКС Сервер' => 'Available memory in %'
+					]
+				]
+			],
+			// #56.
 			[
 				[
 					'expected' => TEST_GOOD,
 					'fields' => [
 						'Name' => ' Test trailing spaces ',
+						'id:show_5' => true,
 						'Advanced configuration' => true,
 						'id:description' => ' {ITEM.NAME} ',
 						'id:desc_size' => ' 1 ',
@@ -1320,6 +1686,11 @@ class testDashboardItemValueWidget extends testWidgets {
 						'id:units' => ' s ',
 						'id:units_size' => ' 1 ',
 						'id:time_size' => ' 1 ',
+						'id:sparkline_width' => ' 5',
+						'id:sparkline_fill' => ' 7',
+						'id:sparkline_time_period_data_source' => 'Custom',
+						'id:sparkline_time_period_from' => ' now-2y ',
+						'id:sparkline_time_period_to' => ' now-1y ',
 						'Aggregation function' => 'min',
 						'Time period' => 'Custom',
 						'id:time_period_from' => ' now-2w ',
@@ -1329,6 +1700,81 @@ class testDashboardItemValueWidget extends testWidgets {
 						'ЗАББИКС Сервер' => 'Available memory in %'
 					],
 					'trim' => true
+				]
+			],
+			// #57 Check that there is no errors, when show value option is unchecked (for each data type).
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Item with unchecked value - float',
+						'Refresh interval' => '1 minute',
+						// Value checkbox.
+						'id:show_2' => false
+					],
+					'item' => [
+						self::INDICATOR_CHANGE_HOST => 'Indicator - Numeric (float)'
+					]
+				]
+			],
+			// #58.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Item with unchecked value - character',
+						'Refresh interval' => '1 minute',
+						// Value checkbox.
+						'id:show_2' => false
+					],
+					'item' => [
+						self::INDICATOR_CHANGE_HOST => 'Indicator - Character'
+					]
+				]
+			],
+			// #59.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Item with unchecked value - log',
+						'Refresh interval' => '1 minute',
+						// Value checkbox.
+						'id:show_2' => false
+					],
+					'item' => [
+						self::INDICATOR_CHANGE_HOST => 'Indicator - Log'
+					]
+				]
+			],
+			// #60.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Item with unchecked value - numeric (unsigned)',
+						'Refresh interval' => '1 minute',
+						// Value checkbox.
+						'id:show_2' => false
+					],
+					'item' => [
+						self::INDICATOR_CHANGE_HOST => 'Indicator - Numeric (unsigned)'
+					]
+				]
+			],
+			// #61.
+			[
+				[
+					'expected' => TEST_GOOD,
+					'fields' => [
+						'Name' => 'Item with unchecked value - text',
+						'Refresh interval' => '1 minute',
+						// Value checkbox.
+						'id:show_2' => false
+					],
+					'item' => [
+						self::INDICATOR_CHANGE_HOST => 'Indicator - Text'
+					]
 				]
 			]
 		];
@@ -1345,7 +1791,7 @@ class testDashboardItemValueWidget extends testWidgets {
 
 	public static function getWidgetUpdateData() {
 		return [
-			// #45.
+			// #62.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1364,7 +1810,7 @@ class testDashboardItemValueWidget extends testWidgets {
 					]
 				]
 			],
-			// #46.
+			// #63.
 			[
 				[
 					'expected' => TEST_GOOD,
@@ -1454,7 +1900,7 @@ class testDashboardItemValueWidget extends testWidgets {
 			// Prepare data to check widget "Item" field, should be in the format "Host name: Item name".
 			$data['fields']['Item'] = [];
 			foreach ($data['item'] as $host => $item) {
-				$data['fields']['Item'][] = $host.': '. $item;
+				$data['fields']['Item'][] = $host.': '.$item;
 			}
 
 			$header = CTestArrayHelper::get($data['fields'], 'Name')
@@ -1580,7 +2026,7 @@ class testDashboardItemValueWidget extends testWidgets {
 		$old_hash = CDBHelper::getHash(self::SQL);
 
 		$this->page->login()->open('zabbix.php?action=dashboard.view&dashboardid='.self::$dashboardids[self::DASHBOARD]);
-		$dashboard = CDashboardElement::find()->one();
+		$dashboard = CDashboardElement::find()->one()->waitUntilReady();
 		$old_widget_count = $dashboard->getWidgets()->count();
 
 		$form = $create
@@ -2641,7 +3087,7 @@ class testDashboardItemValueWidget extends testWidgets {
 		COverlayDialogElement::ensureNotPresent();
 		$this->page->waitUntilReady();
 		$dashboard->save();
-		$this->assertMessage('Dashboard updated');
+		$this->assertMessage(TEST_GOOD, 'Dashboard updated');
 
 		// Value for threshold trigger.
 		foreach ($data['thresholds'] as $threshold) {
@@ -2664,7 +3110,7 @@ class testDashboardItemValueWidget extends testWidgets {
 
 			$opacity = (array_key_exists('opacity', $data)) ? '0' : '1';
 			$this->assertEquals('rgba('.$rgb.', '.$opacity.')', $dashboard->getWidget($data['fields']['Name'])
-					->query('xpath:.//div[contains(@class, "dashboard-widget-item")]/div/div')->one()->getCSSValue('background-color')
+					->query('xpath:.//div[contains(@class, "dashboard-widget-item")]/div/a')->one()->getCSSValue('background-color')
 			);
 		}
 
@@ -2802,15 +3248,16 @@ class testDashboardItemValueWidget extends testWidgets {
 		}
 
 		$dashboard->waitUntilReady();
-		$this->assertMessage('Dashboard updated');
+		$this->assertMessage(TEST_GOOD, 'Dashboard updated');
 
 		if (array_key_exists('zoom_filter', $data)) {
 			// Check that zoom filter tab link is valid.
-			$this->assertTrue($this->query('xpath:.//a[@href="#tab_1"]')->one()->isValid());
+			$filter = CFilterElement::find()->one();
+			$this->assertTrue($filter->isExpanded(false));
 
 			// Check zoom filter layout.
 			if (array_key_exists('filter_layout', $data)) {
-				$filter = CFilterElement::find()->one();
+				$filter->open();
 				$this->assertEquals('Last 1 hour', $filter->getSelectedTabName());
 				$this->assertEquals('Last 1 hour', $filter->query('link:Last 1 hour')->one()->getText());
 
@@ -2838,7 +3285,7 @@ class testDashboardItemValueWidget extends testWidgets {
 			}
 		}
 		else {
-			$this->assertFalse($this->query('xpath:.//a[@href="#tab_1"]')->one(false)->isValid());
+			$this->assertFalse($this->query('xpath:.//a[@href="#tab_1"]')->one(false)->isVisible());
 		}
 
 		// Clear particular dashboard for next test case.
@@ -2901,6 +3348,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'Item' => 'Value mapping',
 						'Advanced configuration' => true,
 						'Aggregation function' => 'min',
+						'Decimal places' => '0',
 						'Time period' => 'Custom'
 					],
 					'item_data' => [
@@ -2925,6 +3373,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						'Item' => 'Value mapping',
 						'Advanced configuration' => true,
 						'Aggregation function' => 'max',
+						'Decimal places' => '2',
 						'Time period' => 'Custom',
 						'id:time_period_from' => 'now-2h',
 						'id:time_period_to' => 'now-1h'
@@ -2944,7 +3393,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						]
 					],
 					'value_mapping' => true,
-					'expected_value' => 'Up (1)',
+					'expected_value' => 'Up (1.00)',
 					'arrow' => 'up-down'
 				]
 			],
@@ -2966,7 +3415,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						]
 					],
 					'value_mapping' => true,
-					'expected_value' => 'Up (1)'
+					'expected_value' => 'Up (1.00)'
 				]
 			],
 			// Item with value mapping, aggregation function 'avg' and Custom time period.
@@ -3075,7 +3524,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						]
 					],
 					'value_mapping' => true,
-					'expected_value' => 'Up (1)',
+					'expected_value' => 'Up (1.00)',
 					'arrow' => 'up-down'
 				]
 			],
@@ -3105,7 +3554,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						]
 					],
 					'value_mapping' => true,
-					'expected_value' => 'Down (0)'
+					'expected_value' => 'Down (0.00)'
 				]
 			],
 			// Item with value mapping and aggregation function 'not used'.
@@ -3131,7 +3580,7 @@ class testDashboardItemValueWidget extends testWidgets {
 						]
 					],
 					'value_mapping' => true,
-					'expected_value' => 'Up (1)',
+					'expected_value' => 'Up (1.00)',
 					'arrow' => 'up-down'
 				]
 			],
@@ -3906,6 +4355,165 @@ class testDashboardItemValueWidget extends testWidgets {
 	public function testDashboardItemValueWidget_CheckAvailableItems() {
 		$this->checkAvailableItems('zabbix.php?action=dashboard.view&dashboardid='.self::$dashboardids[self::DASHBOARD],
 				'Item value'
+		);
+	}
+
+	public static function getMacroFunctions() {
+		return [
+			'Incorrectly added parameter for non-argument macro functions' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{{ITEM.NAME}.btoa(\)}, {'.self::USER_MACRO.'.htmldecode(test)}, '.
+							'{'.self::USER_MACRO.'.htmlencode(test)}, {{ITEM.NAME}.lowercase([test])}, '.
+							'{{ITEM.NAME}.uppercase([test])}, {{ITEM.NAME}.urldecode([test])}, '.
+							'{'.self::USER_SECRET_MACRO.'.urlencode(\/)}',
+						'id:desc_size' => 5
+					],
+					'result' => '*UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*'
+				]
+			],
+			'Secret macro value is not exposed when using macro functions' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_SECRET_MACRO.'.btoa()}, {'.self::USER_SECRET_MACRO.'.htmldecode()}, '.
+							'{'.self::USER_SECRET_MACRO.'.htmlencode()}, {'.self::USER_SECRET_MACRO.'.lowercase()}, '.
+							'{'.self::USER_SECRET_MACRO.'.uppercase()}, {'.self::USER_SECRET_MACRO.'.regrepl(a, b)}, '.
+							'{'.self::USER_SECRET_MACRO.'.tr(a-z, b)}, {'.self::USER_SECRET_MACRO.'.urldecode()}, '.
+							'{'.self::USER_SECRET_MACRO.'.urlencode()}',
+						'id:desc_size' => 5
+					],
+					'result' => 'KioqKioq, ******, ******, ******, ******, ******, ******, ******, %2A%2A%2A%2A%2A%2A'
+				]
+			],
+			'Built-in macros with non-argument macro functions' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{{ITEM.NAME}.btoa()}, {{ITEM.NAME}.htmldecode()}, {{ITEM.NAME}.htmlencode()}, '.
+							'{{ITEM.NAME}.lowercase()}, {{ITEM.NAME}.uppercase()}, {{ITEM.NAME}.urlencode()}, '.
+							'{{ITEM.NAME}.urldecode()}',
+						'id:desc_size' => 5
+					],
+					'result' => 'Q1BVIHVzZXIgdGltZQ==, CPU user time, CPU user time, cpu user time, CPU USER TIME, '.
+						'CPU%20user%20time, CPU user time'
+				]
+			],
+			'User macros with non-argument macro functions' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_MACRO.'.btoa()}, {'.self::MACRO_HTML_ENCODE.'.htmlencode()}, '.
+							'{'.self::MACRO_HTML_DECODE.'.htmldecode()}, {'.self::MACRO_URL_ENCODE.'.urlencode()}, '.
+							'{'.self::MACRO_URL_DECODE.'.urldecode()}, {'.self::USER_MACRO.'.uppercase()}, '.
+							'{'.self::USER_MACRO.'.lowercase()}',
+						'id:desc_size' => 5
+					],
+					'result' => base64_encode(self::USER_MACRO_VALUE).', '.self::MACRO_HTML_DECODE_VALUE.', '.
+						self::MACRO_HTML_ENCODE_VALUE.', '.self::MACRO_URL_DECODE_VALUE.', '.self::MACRO_URL_ENCODE_VALUE.
+						', MACRO FUNCTION TEST 12345, macro function test 12345'
+				]
+			],
+			'Incorrectly used parameters in regrepl(), tr(), regsub(), iregsub() macro functions' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_MACRO.'.regrepl()}, {'.self::MACRO_CHAR.'.regrepl(,[a]~,\\\1)}, '.
+							'{'.self::USER_MACRO.'.tr()}, {'.self::USER_MACRO.'.tr(z-a,Z-A)}, {'.self::USER_MACRO.'.tr(1,2,3)}'.
+							', {'.self::USER_MACRO.'.regsub()}, {'.self::USER_MACRO.'.iregsub()}',
+						'id:desc_size' => 5
+					],
+					'result' => '*UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*, *UNKNOWN*'
+				]
+			],
+			'Regrepl function - multibyte characters and case sensitive check' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_MACRO.'.regrepl("[^a-z]", /, [A-Z], \)}, '.
+							'{'.self::MACRO_CHAR.'.regrepl(🌴, 🌝, [а-я], Q, \d, 🌞, ₰, *)}',
+						'id:desc_size' => 5
+					],
+					'result' => '/acro/function//est//////, 🌞🌞🌞 ЙQQQQЖŽzŠsšĒĀīī🌝 ***'
+				]
+			],
+			'Regrepl function with big amount of processed data' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_MACRO.''.
+							'.regrepl(1{0}, test, 1{0}, test, 1{0},test, 1{0}, test, 1{0}, test, 1{0}, test)}',
+						'id:desc_size' => 5
+					],
+					'result' => '*UNKNOWN*'
+				]
+			],
+			'Macro functions tr(), uppercase(), lowercase() with non-ascii characters' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::MACRO_CHAR.'.tr(0-9, Ī)}, {'.self::MACRO_CHAR.'.lowercase()}, '.
+							'{'.self::MACRO_CHAR.'.uppercase()}',
+						'id:desc_size' => 5
+					],
+					'result' => '??? ЙщфхжЖŽzŠsšĒĀīī🌴 ₰₰₰, 000 ЙщфхжЖŽzŠsšĒĀīī🌴 ₰₰₰, 000 ЙщфхжЖŽZŠSšĒĀīī🌴 ₰₰₰'
+				]
+			],
+			'Macro function tr() - use of escaping and range' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::MACRO_URL_ENCODE.'.tr("\/","\"")}, {'.self::MACRO_CHAR.'.tr(0-9A-Cabc,*)}',
+						'id:desc_size' => 5
+					],
+					'result' => 'h:""test.com"macro?functions=urlencode&urld=a🎸, *** ЙщфхжЖŽzŠsšĒĀīī🌴 ₰₰₰'
+				]
+			],
+			'Macro functions regsub(), iregsub() - successful scenarios' => [
+				[
+					'fields' => [
+						'Advanced configuration' => true,
+						'id:description' => '{'.self::USER_MACRO.'.regsub(^[0-9]+, Problem)}, '.
+							'{'.self::USER_MACRO.'.iregsub(^[0-9]+, Problem)}, '.
+							'{'.self::USER_SECRET_MACRO.'.regsub(^[0-9]+, Problem)}, '.
+							'{'.self::USER_SECRET_MACRO.'.iregsub(^[0-9]+, Problem)}, '.
+							'{{ITEM.NAME}.regsub(CPU, test)}, {{ITEM.NAME}.iregsub(CPU, test)}',
+						'id:desc_size' => 5
+					],
+					'result' => 'Problem, Problem, Problem, Problem, test, test'
+				]
+			]
+			// TODO: Uncomment and check the test case, after ZBX-25420 fix.
+//			'Macro functions regsub(), iregsub() - empty value in case of no match' => [
+//				[
+//					'fields' => [
+//						'Advanced configuration' => true,
+//						'id:description' => '{'.self::USER_MACRO.'.regsub(0, Problem)}, '.
+//							'{'.self::USER_MACRO.'.iregsub(0, Problem)}, '.
+//							'{'.self::USER_SECRET_MACRO.'.regsub(0, Problem)}, '.
+//							'{'.self::USER_SECRET_MACRO.'.iregsub(0, Problem)}, '.
+//							'{{ITEM.NAME}.regsub(0, test)}, {{ITEM.NAME}.iregsub(0, test)}',
+//						'id:desc_size' => 5
+//					],
+//					'result' => ', , , , ,'
+//				]
+//			]
+		];
+	}
+
+	/**
+	 * @dataProvider getMacroFunctions
+	 */
+	public function testDashboardItemValueWidget_CheckMacroFunctions($data) {
+		$this->setWidgetConfiguration(self::$dashboardids[self::DASHBOARD_THRESHOLD].'&page=2',
+				self::MACRO_FUNCTION_WIDGET, $data['fields']
+		);
+		CDashboardElement::find()->one()->save()->waitUntilReady();
+
+		// Check the resolution of macrofunction.
+		$this->assertEquals($data['result'], $this->query('xpath://div[@class="bottom center item-description"]')
+				->one()->getText()
 		);
 	}
 }

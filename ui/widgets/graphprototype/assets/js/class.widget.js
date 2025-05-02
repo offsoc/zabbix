@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -39,7 +39,7 @@ class CWidgetGraphPrototype extends CWidgetIterator {
 	}
 
 	onFeedback({type, value}) {
-		if (type === CWidgetsData.DATA_TYPE_TIME_PERIOD) {
+		if (type === CWidgetsData.DATA_TYPE_TIME_PERIOD && this.getFieldsReferredData().has('time_period')) {
 			this.feedback({time_period: value});
 
 			return true;

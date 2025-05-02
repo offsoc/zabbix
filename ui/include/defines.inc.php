@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,11 +13,11 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-define('ZABBIX_VERSION',		'7.2.0beta1');
-define('ZABBIX_API_VERSION',	'7.2.0');
-define('ZABBIX_EXPORT_VERSION',	'7.2');
+define('ZABBIX_VERSION',		'7.4.0beta2');
+define('ZABBIX_API_VERSION',	'7.4.0');
+define('ZABBIX_EXPORT_VERSION',	'7.4');
 
-define('ZABBIX_DB_VERSION',		7010019);
+define('ZABBIX_DB_VERSION',		7030032);
 
 define('DB_VERSION_SUPPORTED',						0);
 define('DB_VERSION_LOWER_THAN_MINIMUM',				1);
@@ -29,7 +29,7 @@ define('DB_VERSION_HIGHER_THAN_MAXIMUM_ERROR',		6);
 define('DB_VERSION_HIGHER_THAN_MAXIMUM_WARNING',	7);
 
 define('ZABBIX_COPYRIGHT_FROM',	'2001');
-define('ZABBIX_COPYRIGHT_TO',	'2024');
+define('ZABBIX_COPYRIGHT_TO',	'2025');
 
 define('ZBX_DOCUMENTATION_URL', 'https://www.zabbix.com/documentation');
 
@@ -504,6 +504,9 @@ define('ZBX_REPORT_CREATOR_TYPE_RECIPIENT',	1);
 define('ZBX_REPORT_EXCLUDE_USER_FALSE',	0);
 define('ZBX_REPORT_EXCLUDE_USER_TRUE',	1);
 
+define('SYSMAP_BACKGROUND_SCALE_NONE', 	0);
+define('SYSMAP_BACKGROUND_SCALE_COVER', 1);
+
 define('SYSMAP_LABEL_ADVANCED_OFF',	0);
 define('SYSMAP_LABEL_ADVANCED_ON',	1);
 
@@ -523,6 +526,14 @@ define('MAP_LABEL_LOC_BOTTOM',	0);
 define('MAP_LABEL_LOC_LEFT',	1);
 define('MAP_LABEL_LOC_RIGHT',	2);
 define('MAP_LABEL_LOC_TOP',		3);
+
+define('MAP_SHOW_LABEL_DEFAULT', 	-1);
+define('MAP_SHOW_LABEL_AUTO_HIDE',	0);
+define('MAP_SHOW_LABEL_ALWAYS', 	1);
+
+define('MAP_INDICATOR_TYPE_STATIC_LINK', 	0);
+define('MAP_INDICATOR_TYPE_TRIGGER', 		1);
+define('MAP_INDICATOR_TYPE_ITEM_VALUE', 	2);
 
 define('SYSMAP_ELEMENT_TYPE_HOST',		0);
 define('SYSMAP_ELEMENT_TYPE_MAP',		1);
@@ -551,6 +562,8 @@ define('SYSMAP_SHAPE_BORDER_TYPE_NONE',		0);
 define('SYSMAP_SHAPE_BORDER_TYPE_SOLID',	1);
 define('SYSMAP_SHAPE_BORDER_TYPE_DOTTED',	2);
 define('SYSMAP_SHAPE_BORDER_TYPE_DASHED',	3);
+
+define('SYSMAP_SHAPE_BORDER_WIDTH_DEFAULT',	2);
 
 define('SYSMAP_SHAPE_LABEL_HALIGN_CENTER',	0);
 define('SYSMAP_SHAPE_LABEL_HALIGN_LEFT',	1);
@@ -607,9 +620,6 @@ define('SNMP_V1', 1);
 define('SNMP_V2C', 2);
 define('SNMP_V3', 3);
 
-define('ZBX_DEPENDENT_ITEM_MAX_LEVELS',	3);
-define('ZBX_DEPENDENT_ITEM_MAX_COUNT',	29999);
-
 define('ITEM_VALUE_TYPE_FLOAT',		0);
 define('ITEM_VALUE_TYPE_STR',		1); // aka Character
 define('ITEM_VALUE_TYPE_LOG',		2);
@@ -631,7 +641,7 @@ define('ITEM_DATA_TYPE_BOOLEAN',		3);
 
 define('ZBX_DEFAULT_KEY_DB_MONITOR',			'db.odbc.select[<unique short description>,<dsn>,<connection string>]');
 define('ZBX_DEFAULT_KEY_DB_MONITOR_DISCOVERY',	'db.odbc.discovery[<unique short description>,<dsn>,<connection string>]');
-define('ZBX_DEFAULT_KEY_SSH',					'ssh.run[<unique short description>,<ip>,<port>,<encoding>,<ssh options>]');
+define('ZBX_DEFAULT_KEY_SSH',					'ssh.run[<unique short description>,<ip>,<port>,<encoding>,<ssh options>,<subsystem>]');
 define('ZBX_DEFAULT_KEY_TELNET',				'telnet.run[<unique short description>,<ip>,<port>,<encoding>]');
 
 define('ZBX_DEFAULT_JMX_ENDPOINT',	'service:jmx:rmi:///jndi/rmi://{HOST.CONN}:{HOST.PORT}/jmxrmi');
@@ -783,18 +793,13 @@ define('ZBX_LLD_RULE_DELAY_DEFAULT',	'1h');
 define('GRAPH_DISCOVER',	0);
 define('GRAPH_NO_DISCOVER',	1);
 
-define('GRAPH_ITEM_DRAWTYPE_LINE',			0);
-define('GRAPH_ITEM_DRAWTYPE_FILLED_REGION',	1);
-define('GRAPH_ITEM_DRAWTYPE_BOLD_LINE',		2);
-define('GRAPH_ITEM_DRAWTYPE_DOT',			3);
-define('GRAPH_ITEM_DRAWTYPE_DASHED_LINE',	4);
-define('GRAPH_ITEM_DRAWTYPE_GRADIENT_LINE',	5);
-define('GRAPH_ITEM_DRAWTYPE_BOLD_DOT',		6);
-
-define('MAP_LINK_DRAWTYPE_LINE',			0);
-define('MAP_LINK_DRAWTYPE_BOLD_LINE',		2);
-define('MAP_LINK_DRAWTYPE_DOT',				3);
-define('MAP_LINK_DRAWTYPE_DASHED_LINE',		4);
+define('DRAWTYPE_LINE',				0);
+define('DRAWTYPE_FILLED_REGION',	1);
+define('DRAWTYPE_BOLD_LINE',		2);
+define('DRAWTYPE_DOT',				3);
+define('DRAWTYPE_DASHED_LINE',		4);
+define('DRAWTYPE_GRADIENT_LINE',	5);
+define('DRAWTYPE_BOLD_DOT',			6);
 
 define('ZBX_SLA_MAX_REPORTING_PERIODS',		100);
 define('ZBX_SLA_DEFAULT_REPORTING_PERIODS',	20);
@@ -879,6 +884,10 @@ define('ZBX_MEDIA_TYPE_TAGS_DISABLED',	0);
 define('ZBX_MEDIA_TYPE_TAGS_ENABLED',	1);
 define('ZBX_EVENT_MENU_HIDE',	0);
 define('ZBX_EVENT_MENU_SHOW',	1);
+// Media types used in actions filter.
+define('ZBX_MEDIA_TYPE_ACTIONS_ALL', -1);
+define('ZBX_MEDIA_TYPE_ACTIONS_AVAILABLE', 0);
+define('ZBX_MEDIA_TYPE_ACTIONS_SPECIFIC', 1);
 
 define('MEDIA_TYPE_EMAIL',		0);
 define('MEDIA_TYPE_EXEC',		1);
@@ -1311,6 +1320,9 @@ define('SVG_GRAPH_AXIS_ON',		1);
 define('SVG_GRAPH_AXIS_UNITS_AUTO',		0);
 define('SVG_GRAPH_AXIS_UNITS_STATIC',	1);
 
+define('SVG_GRAPH_AXIS_SCALE_LINEAR',		0);
+define('SVG_GRAPH_AXIS_SCALE_LOGARITHMIC',	1);
+
 define('SVG_GRAPH_MAX_NUMBER_OF_METRICS', 50);
 
 define('SVG_GRAPH_DEFAULT_WIDTH',			1);
@@ -1604,6 +1616,7 @@ define('API_PROMETHEUS_LABEL',		68);
 define('API_HOST_ADDRESS',			69);
 define('API_ESCAPED_STRING_UTF8',	70);
 define('API_NUMBER',				71);
+define('API_SELEMENTID',			72);
 
 // flags
 define('API_REQUIRED',					0x00001);
@@ -1635,6 +1648,7 @@ if (!defined('JSON_ERROR_SYNTAX')) {
 
 // API errors
 define('ZBX_API_ERROR_INTERNAL',	111);
+define('ZBX_API_ERROR_DB',			112);
 define('ZBX_API_ERROR_PARAMETERS',	100);
 define('ZBX_API_ERROR_NO_ENTITY',	101);
 define('ZBX_API_ERROR_PERMISSIONS',	120);
@@ -1670,6 +1684,9 @@ define('ZBX_USERMACRO_AUTOMATIC', 1); // Macro value updated by discovery rule.
 define('ZBX_VAULT_TYPE_UNKNOWN', -1);
 define('ZBX_VAULT_TYPE_HASHICORP', 0);
 define('ZBX_VAULT_TYPE_CYBERARK',  1);
+
+define('ZBX_PROXY_SECRETS_PROVIDER_SERVER', 0);
+define('ZBX_PROXY_SECRETS_PROVIDER_PROXY', 1);
 
 define('ZBX_SECRET_MASK', '******'); // Placeholder for secret values.
 
@@ -1930,6 +1947,7 @@ define('ZBX_STYLE_BTN_DASHBOARD_KIOSKMODE_PREVIOUS_PAGE', 'btn-dashboard-kioskmo
 define('ZBX_STYLE_BTN_DASHBOARD_KIOSKMODE_TOGGLE_SLIDESHOW', 'btn-dashboard-kioskmode-toggle-slideshow');
 define('ZBX_STYLE_BTN_DEBUG', 'btn-debug');
 define('ZBX_STYLE_BTN_GREY', 'btn-grey');
+define('ZBX_STYLE_BTN_GREY_ICON', 'btn-grey-icon');
 define('ZBX_STYLE_BTN_HOST_DASHBOARD_LIST', 'btn-host-dashboard-list');
 define('ZBX_STYLE_BTN_HOST_DASHBOARD_NEXT_DASHBOARD', 'btn-host-dashboard-next-dashboard');
 define('ZBX_STYLE_BTN_HOST_DASHBOARD_PREVIOUS_DASHBOARD', 'btn-host-dashboard-previous-dashboard');
@@ -2043,6 +2061,7 @@ define('ZBX_STYLE_HOST_DASHBOARD_NAVIGATION', 'host-dashboard-navigation');
 define('ZBX_STYLE_HOST_DASHBOARD_NAVIGATION_CONTROLS', 'host-dashboard-navigation-controls');
 define('ZBX_STYLE_HOST_DASHBOARD_NAVIGATION_TABS', 'host-dashboard-navigation-tabs');
 define('ZBX_STYLE_HOVER_NOBG', 'hover-nobg');
+define('ZBX_STYLE_HINTBOX_RAW_DATA', 'hintbox-raw-data');
 define('ZBX_STYLE_HINTBOX_WRAP', 'hintbox-wrap');
 define('ZBX_STYLE_HINTBOX_WRAP_HORIZONTAL', 'hintbox-wrap-horizontal');
 define('ZBX_STYLE_ICON', 'icon');
@@ -2180,7 +2199,6 @@ define('ZBX_STYLE_TABLE_STATS', 'table-stats');
 define('ZBX_STYLE_TABS_NAV', 'tabs-nav');
 define('ZBX_STYLE_TAG', 'tag');
 define('ZBX_STYLE_TEXT_PLACEHOLDER', 'text-placeholder');
-define('ZBX_STYLE_TEXT_VERTICAL', 'text-vertical');
 define('ZBX_STYLE_TEXTAREA_FLEXIBLE', 'textarea-flexible');
 define('ZBX_STYLE_TEXTAREA_FLEXIBLE_CONTAINER', 'textarea-flexible-container');
 define('ZBX_STYLE_TEXTAREA_FLEXIBLE_PARENT', 'textarea-flexible-parent');
@@ -2364,6 +2382,8 @@ define('ZBX_ICON_PENCIL', 'zi-pencil');
 define('ZBX_ICON_PLAY', 'zi-play');
 define('ZBX_ICON_PLUS', 'zi-plus');
 define('ZBX_ICON_PLUS_SMALL', 'zi-plus-small');
+define('ZBX_ICON_PROXY', 'zi-proxy');
+define('ZBX_ICON_PROXY_GROUP', 'zi-proxy-group');
 define('ZBX_ICON_REFERENCE', 'zi-reference');
 define('ZBX_ICON_REMOVE', 'zi-remove');
 define('ZBX_ICON_REMOVE_SMALL', 'zi-remove-small');
@@ -2371,6 +2391,7 @@ define('ZBX_ICON_REMOVE_SMALLER', 'zi-remove-smaller');
 define('ZBX_ICON_REPORTS', 'zi-reports');
 define('ZBX_ICON_SEARCH', 'zi-search');
 define('ZBX_ICON_SEARCH_LARGE', 'zi-search-large');
+define('ZBX_ICON_SERVER', 'zi-server');
 define('ZBX_ICON_SERVICES', 'zi-services');
 define('ZBX_ICON_SIGN_OUT', 'zi-sign-out');
 define('ZBX_ICON_SPEAKER', 'zi-speaker');

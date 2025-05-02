@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -200,6 +200,9 @@ typedef struct
 
 	/* timestamp of the last low memory warning message */
 	int		last_warning_time;
+
+	/* timestamp of the last warning message when item couldn't be allocated due to insufficient space */
+	time_t		last_alloc_warning_time;
 
 	/* the minimum number of bytes to be freed when cache runs out of space */
 	size_t		min_free_request;
@@ -738,6 +741,29 @@ static void	vc_dump_items_statistics(void)
 
 /******************************************************************************
  *                                                                            *
+ * Purpose: logs warning when item allocation in cache failed due to          *
+ *          insufficient space.                                               *
+ *                                                                            *
+ * Comments: The failed alloc warning is written to log every 5 minutes.      *
+ *                                                                            *
+ ******************************************************************************/
+static void	vc_warn_alloc(const zbx_vc_item_t *item, size_t requested_bytes)
+{
+	time_t	now;
+
+	now = time(NULL);
+
+	if (now - vc_cache->last_alloc_warning_time > ZBX_VC_LOW_MEMORY_WARNING_PERIOD)
+	{
+		vc_cache->last_alloc_warning_time = now;
+
+		zabbix_log(LOG_LEVEL_WARNING, "cannot allocate " ZBX_FS_UI64 " bytes for itemid:" ZBX_FS_UI64
+				" in value cache", requested_bytes, item->itemid);
+	}
+}
+
+/******************************************************************************
+ *                                                                            *
  * Purpose: logs low memory warning                                           *
  *                                                                            *
  * Comments: The low memory warning is written to log every 5 minutes when    *
@@ -841,6 +867,7 @@ static void	vc_release_space(zbx_vc_item_t *source_item, size_t space)
 	vc_cache->mode_time = (int)time(NULL);
 
 	vc_warn_low_memory();
+	vc_warn_alloc(source_item, space);
 
 	/* remove items with least hits/size ratio */
 	zbx_vector_vc_itemweight_create(&items);
@@ -2046,7 +2073,7 @@ static int	vch_item_cache_values_by_time_and_count(zbx_vc_item_t **item, int ran
 		return SUCCEED;
 
 	/* find if the cache should be updated to cover the required count */
-	if (NULL != (*item)->head)
+	if (0 != (*item)->db_cached_from && NULL != (*item)->head)
 	{
 		zbx_vc_chunk_t	*chunk;
 		int		index;
@@ -2065,7 +2092,7 @@ static int	vch_item_cache_values_by_time_and_count(zbx_vc_item_t **item, int ran
 		return SUCCEED;
 
 	/* get the end timestamp to which (including) the values should be cached */
-	if (NULL != (*item)->head)
+	if (0 != (*item)->db_cached_from && NULL != (*item)->head)
 		range_end = (*item)->tail->slots[(*item)->tail->first_value].timestamp.sec - 1;
 	else
 		range_end = ZBX_JAN_2038;
@@ -2496,6 +2523,7 @@ void	zbx_vc_reset(void)
 		vc_cache->mode = ZBX_VC_MODE_NORMAL;
 		vc_cache->mode_time = 0;
 		vc_cache->last_warning_time = 0;
+		vc_cache->last_alloc_warning_time = 0;
 
 		UNLOCK_CACHE;
 	}
@@ -2541,7 +2569,8 @@ int	zbx_vc_add_values(zbx_vector_dc_history_ptr_t *history, int *ret_flush, int 
 			zbx_vc_item_t	item_local = {
 					.itemid = h->itemid,
 					.value_type = h->value_type,
-					.last_accessed = (int)time(NULL)
+					.last_accessed = (int)time(NULL),
+					.active_range = VC_MIN_RANGE
 
 			};
 
@@ -2549,7 +2578,7 @@ int	zbx_vc_add_values(zbx_vector_dc_history_ptr_t *history, int *ret_flush, int 
 		}
 
 		/* cache new values only after the item history database status is known */
-		if (NULL != item && (ZBX_ITEM_STATUS_CACHED_ALL == item->status || 0 != item->db_cached_from))
+		if (NULL != item)
 		{
 			zbx_history_record_t	record = {h->ts, h->value};
 			zbx_vc_chunk_t		*head = item->head;
@@ -2912,6 +2941,7 @@ void	zbx_vc_add_new_items(const zbx_vector_uint64_pair_t *items)
 					.itemid = items->values[i].first,
 					.value_type = (unsigned char)items->values[i].second,
 					.status = ZBX_ITEM_STATUS_CACHED_ALL,
+					.active_range = VC_MIN_RANGE,
 					.last_accessed = (int)time(NULL)
 
 			};

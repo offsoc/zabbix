@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -19,9 +19,11 @@ require_once __DIR__.'/../../include/classes/core/CRegistryFactory.php';
 require_once __DIR__.'/../../include/classes/core/Manager.php';
 require_once __DIR__.'/../../include/classes/api/API.php';
 require_once __DIR__.'/../../include/classes/api/CApiServiceFactory.php';
+require_once __DIR__.'/../../include/classes/api/helpers/CApiSettingsHelper.php';
 require_once __DIR__.'/../../include/classes/api/managers/CHistoryManager.php';
 require_once __DIR__.'/../../include/classes/api/services/CSettings.php';
 require_once __DIR__.'/../../include/classes/api/services/CHousekeeping.php';
+require_once __DIR__.'/../../include/classes/data/CSettingsSchema.php';
 require_once __DIR__.'/../../include/classes/helpers/CArrayHelper.php';
 require_once __DIR__.'/../../include/classes/helpers/CSettingsHelper.php';
 require_once __DIR__.'/../../include/classes/validators/CApiInputValidator.php';

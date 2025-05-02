@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -17,7 +17,7 @@
 require_once dirname(__FILE__) . '/../include/CAPITest.php';
 
 /**
- * @backup mfa, config, usrgrp, users, mfa_totp_secret
+ * @backup mfa, settings, usrgrp, users, mfa_totp_secret
  *
  * @onBefore prepareTestData
  *

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,10 +18,10 @@ use Widgets\Clock\Widget;
 
 ?>
 
-window.widget_clock_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	init() {
-		this._form = document.getElementById('widget-dialogue-form');
+		this._form = this.getForm();
 		this._time_type = document.getElementById('time_type');
 		this._clock_type = document.getElementById('clock_type');
 
@@ -29,7 +29,7 @@ window.widget_clock_form = new class {
 		this._show_time = document.getElementById('show_2');
 		this._show_tzone = document.getElementById('show_3');
 
-		for (const colorpicker of this._form.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const colorpicker of this._form.querySelectorAll(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			$(colorpicker).colorpicker({
 				appendTo: '.overlay-dialogue-body',
 				use_default: true,
@@ -48,6 +48,7 @@ window.widget_clock_form = new class {
 		}
 
 		this.updateForm();
+		this.ready();
 	}
 
 	updateForm() {

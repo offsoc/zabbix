@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,7 +14,7 @@
 **/
 
 
-require_once dirname(__FILE__) . '/../../include/CWebTest.php';
+require_once __DIR__ . '/../../include/CWebTest.php';
 
 /**
  * @backup dashboard, profiles
@@ -99,8 +99,7 @@ class testDashboardsWidgetsPage extends CWebTest {
 		// Opening widget configuration form for new Clock widget.
 		$overlay = $dashboard->addWidget();
 		$default_form = $overlay->asForm();
-		$default_form->fill(['Type' => 'Clock']);
-		$default_form->waitUntilReloaded();
+		$default_form->fill(['Type' => CFormElement::RELOADABLE_FILL('Clock')]);
 		$overlay->close();
 		// Check that widget type is not remembered without submitting the form.
 		$this->checkLastSelectedWidgetType();
@@ -114,12 +113,10 @@ class testDashboardsWidgetsPage extends CWebTest {
 		$this->checkLastSelectedWidgetType();
 
 		// Opening edit widget form and change widget type.
-		$change_form = $dashboard->getWidget('System information')->edit();
-		$change_form->fill(['Type' => 'Data overview']);
-		$change_form->waitUntilReloaded();
-		$change_form->submit();
+		$dashboard->getWidget('System information')->edit()->fill(['Type' => 'Trigger overview']);
+		COverlayDialogElement::get('Edit widget')->asForm()->submit();
 		// Check that widget type inherited from previous widget.
-		$this->checkLastSelectedWidgetType('Data overview', 'dataover');
+		$this->checkLastSelectedWidgetType('Trigger overview', 'trigover');
 
 		$dashboard->cancelEditing();
 	}
@@ -146,7 +143,7 @@ class testDashboardsWidgetsPage extends CWebTest {
 
 		// Expected table values.
 		$expected = [
-			'Zabbix servers'					=> 18,
+			'Zabbix servers'					=> 19,
 			'Inheritance test'					=> 1,
 			'Host group for suppression'		=> 1
 		];

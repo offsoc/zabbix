@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,8 +13,8 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
 
 /**
  * Base class for API tokens form function tests.
@@ -346,7 +346,7 @@ class testFormApiTokens extends CWebTest {
 		}
 
 		// Check that token string will be copied to clipboard.
-		$clipboard_element = $auth_token->query('button:Copy to clipboard')->one();
+		$clipboard_element = $auth_token->query('id:copy_button')->one();
 		$this->assertEquals($token_text, $clipboard_element->getAttribute('data-auth_token'));
 	}
 }

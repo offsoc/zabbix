@@ -1,6 +1,10 @@
 // Widget configuration.
 
 form.dashboard-widget-svggraph {
+	max-width: 1330px;
+	min-width: 1120px;
+	width: 100vw;
+
 	.svg-graph-preview,
 	.graph-widget-config-tabs {
 		grid-column: 1 / -1;
@@ -8,7 +12,6 @@ form.dashboard-widget-svggraph {
 
 	.svg-graph-preview {
 		position: relative;
-		min-width: 1110px;
 		height: 300px;
 
 		> div {
@@ -52,8 +55,15 @@ form.dashboard-widget-svggraph {
 	}
 
 	.dataset-head {
-		.multiselect {
-			width: 100%;
+		.multiselect-control {
+			overflow: hidden;
+			margin: -2px;
+			padding: 2px;
+
+			.multiselect {
+				overflow: hidden;
+				flex-grow: 1;
+			}
 		}
 	}
 
@@ -210,6 +220,17 @@ form.dashboard-widget-svggraph {
 		}
 	}
 
+	.override-host-field-view {
+		overflow: hidden;
+		margin: -2px;
+		padding: 2px;
+
+		.multiselect {
+			overflow: hidden;
+			flex-grow: 1;
+		}
+	}
+
 	.overrides-list {
 		position: relative;
 		margin: -5px 0 -5px 15px;
@@ -233,8 +254,15 @@ form.dashboard-widget-svggraph {
 			height: 24px;
 		}
 
-		.multiselect {
-			width: 100%;
+		.multiselect-control {
+			overflow: hidden;
+			margin: -2px;
+			padding: 2px;
+
+			.multiselect {
+				overflow: hidden;
+				flex-grow: 1;
+			}
 		}
 	}
 

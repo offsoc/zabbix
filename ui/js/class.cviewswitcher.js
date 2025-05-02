@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -347,7 +347,7 @@ ActionProcessor.prototype = {
 			failed = false;
 
 			for (elementId in conditions[i]) {
-				if (this.getValue(elementId) !== conditions[i][elementId]) {
+				if (this.getValue(elementId) != conditions[i][elementId]) {
 					failed = true;
 					break;
 				}
@@ -365,6 +365,7 @@ ActionProcessor.prototype = {
 
 		for (var i = 0; i < this.actions.length; i++) {
 			action = this.actions[i];
+
 			switch (action.action) {
 				case 'show':
 					this.actionToggle(action.value, this.checkConditions(action.cond));

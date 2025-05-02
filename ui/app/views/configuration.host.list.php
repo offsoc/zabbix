@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -19,9 +19,6 @@
  * @var array $data
  */
 
-$this->addJsFile('class.tagfilteritem.js');
-$this->addJsFile('items.js');
-$this->addJsFile('multilineinput.js');
 $this->includeJsFile('configuration.host.list.js.php');
 
 if ($data['uncheck']) {
@@ -34,7 +31,7 @@ $html_page = (new CHtmlPage())
 	->setControls((new CTag('nav', true, (new CList())
 			->addItem(
 				(new CSimpleButton(_('Create host')))
-					->onClick('view.createHost()')
+					->addClass('js-create-host')
 			)
 			->addItem(
 				(new CButton('form', _('Import')))
@@ -280,13 +277,13 @@ foreach ($data['hosts'] as $host) {
 		$description[] = NAME_DELIMITER;
 	}
 
-	$description[] = (new CLink($host['name'],
-		(new CUrl('zabbix.php'))
-			->setArgument('action', 'host.edit')
-			->setArgument('hostid', $host['hostid'])
-	))
-		->setAttribute('data-hostid', $host['hostid'])
-		->onClick('view.editHost(event, this.dataset.hostid);');
+	$host_url = (new CUrl('zabbix.php'))
+		->setArgument('action', 'popup')
+		->setArgument('popup', 'host.edit')
+		->setArgument('hostid', $host['hostid'])
+		->getUrl();
+
+	$description[] = new CLink($host['name'], $host_url);
 
 	$maintenance_icon = false;
 
@@ -335,10 +332,14 @@ foreach ($data['hosts'] as $host) {
 
 		if (array_key_exists($template['templateid'], $data['writable_templates'])
 				&& $data['user']['can_edit_templates']) {
+			$template_url = (new CUrl('zabbix.php'))
+				->setArgument('action', 'popup')
+				->setArgument('popup', 'template.edit')
+				->setArgument('templateid', $template['templateid'])
+				->getUrl();
+
 			$caption = [
-				(new CLink($template['name']))
-					->addClass('js-edit-template')
-					->setAttribute('data-templateid', $template['templateid'])
+				(new CLink($template['name'], $template_url))
 					->addClass(ZBX_STYLE_LINK_ALT)
 					->addClass(ZBX_STYLE_GREY)
 			];
@@ -359,9 +360,13 @@ foreach ($data['hosts'] as $host) {
 			foreach ($parent_templates as $parent_template) {
 				if (array_key_exists($parent_template['templateid'], $data['writable_templates'])
 						&& $data['user']['can_edit_templates']) {
-					$caption[] = (new CLink($parent_template['name']))
-						->addClass('js-edit-template')
-						->setAttribute('data-templateid', $parent_template['templateid'])
+					$parent_template_url = (new CUrl('zabbix.php'))
+						->setArgument('action', 'popup')
+						->setArgument('popup', 'template.edit')
+						->setArgument('templateid', $parent_template['templateid'])
+						->getUrl();
+
+					$caption[] = (new CLink($parent_template['name'], $parent_template_url))
 						->addClass(ZBX_STYLE_LINK_ALT)
 						->addClass(ZBX_STYLE_GREY);
 				}
@@ -447,29 +452,37 @@ foreach ($data['hosts'] as $host) {
 	$monitored_by = null;
 
 	if ($show_monitored_by) {
+		$proxy_url = (new CUrl('zabbix.php'))
+			->setArgument('action', 'popup')
+			->setArgument('popup', 'proxy.edit');
+
 		if ($host['monitored_by'] == ZBX_MONITORED_BY_PROXY) {
 			$monitored_by = $data['user']['can_edit_proxies']
-				? (new CLink($data['proxies'][$host['proxyid']]['name']))
-					->addClass('js-edit-proxy')
-					->setAttribute('data-proxyid', $host['proxyid'])
+				? (new CLink($data['proxies'][$host['proxyid']]['name'],
+					$proxy_url->setArgument('proxyid', $host['proxyid'])
+				))
 				: $data['proxies'][$host['proxyid']]['name'];
 		}
 		elseif ($host['monitored_by'] == ZBX_MONITORED_BY_PROXY_GROUP) {
+			$proxy_group_url = (new CUrl('zabbix.php'))
+				->setArgument('action', 'popup')
+				->setArgument('popup', 'proxygroup.edit')
+				->setArgument('proxy_groupid', $host['proxy_groupid'])
+				->getUrl();
+
 			$monitored_by = $data['user']['can_edit_proxy_groups']
-				? (new CLink($data['proxy_groups'][$host['proxy_groupid']]['name']))
+				? (new CLink($data['proxy_groups'][$host['proxy_groupid']]['name'], $proxy_group_url))
 					->addClass(ZBX_STYLE_LINK_ALT)
 					->addClass(ZBX_STYLE_GREY)
-					->addClass('js-edit-proxy-group')
-					->setAttribute('data-proxy_groupid', $host['proxy_groupid'])
 				: $data['proxy_groups'][$host['proxy_groupid']]['name'];
 
 			if ($host['assigned_proxyid'] != 0) {
 				$monitored_by = [$monitored_by];
 				$monitored_by[] = NAME_DELIMITER;
 				$monitored_by[] = $data['user']['can_edit_proxies']
-					? (new CLink($data['proxies'][$host['assigned_proxyid']]['name']))
-						->addClass('js-edit-proxy')
-						->setAttribute('data-proxyid', $host['assigned_proxyid'])
+					? (new CLink($data['proxies'][$host['assigned_proxyid']]['name'],
+						$proxy_url->setArgument('proxyid', $host['assigned_proxyid'])
+					))
 					: $data['proxies'][$host['assigned_proxyid']]['name'];
 			}
 		}
@@ -482,7 +495,7 @@ foreach ($data['hosts'] as $host) {
 
 	$table->addRow([
 		new CCheckBox('hostids['.$host['hostid'].']', $host['hostid']),
-		(new CCol($description))->addClass(ZBX_STYLE_WORDBREAK),
+		(new CCol($description))->addClass(ZBX_STYLE_NOWRAP),
 		[
 			new CLink(_('Items'),
 				(new CUrl('zabbix.php'))
@@ -505,7 +518,8 @@ foreach ($data['hosts'] as $host) {
 		],
 		[
 			new CLink(_('Graphs'),
-				(new CUrl('graphs.php'))
+				(new CUrl('zabbix.php'))
+					->setArgument('action', 'graph.list')
 					->setArgument('filter_set', '1')
 					->setArgument('filter_hostids', [$host['hostid']])
 					->setArgument('context', 'host')
@@ -530,21 +544,21 @@ foreach ($data['hosts'] as $host) {
 			),
 			CViewHelper::showNum($host['httpTests'])
 		],
-		(new CCol(getHostInterface($interface)))->addClass(ZBX_STYLE_WORDBREAK),
-		(new CCol($monitored_by))->addClass(ZBX_STYLE_WORDBREAK),
-		(new CCol($hostTemplates))->addClass(ZBX_STYLE_WORDBREAK),
+		getHostInterface($interface),
+		$monitored_by,
+		$hostTemplates,
 		[
 			$toggle_status_link,
 			$disabled_by_lld ? makeDescriptionIcon(_('Disabled automatically by an LLD rule.')) : null
 		],
-		getHostAvailabilityTable($host['interfaces'], $host['has_passive_checks']),
+		getHostAvailabilityTable($host['interfaces']),
 		$encryption,
 		makeInformationList($info_icons),
 		$data['tags'][$host['hostid']]
 	]);
 }
 
-$status_toggle_url =  (new CUrl('zabbix.php'))
+$status_toggle_url = (new CUrl('zabbix.php'))
 	->setArgument('action', 'popup.massupdate.host')
 	->setArgument(CSRF_TOKEN_NAME, $csrf_token)
 	->setArgument('visible[status]', 1)

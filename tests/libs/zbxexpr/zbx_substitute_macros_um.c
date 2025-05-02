@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -105,8 +105,7 @@ static void	load_um_cache(zbx_um_mock_cache_t *mock_cache, zbx_mock_handle_t hco
 
 	um_mock_cache_diff(&mock_cache0, mock_cache, &gmacros, &hmacros, &htmpls);
 	config->um_cache = um_cache_create();
-	config->um_cache = um_cache_sync(config->um_cache, 0, &gmacros, &hmacros, &htmpls, &config_vault,
-			get_program_type());
+	config->um_cache = um_cache_sync(config->um_cache, 0, &gmacros, &hmacros, &htmpls, &config_vault);
 
 	mock_dbsync_clear(&gmacros);
 	mock_dbsync_clear(&hmacros);

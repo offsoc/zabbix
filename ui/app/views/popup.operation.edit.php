@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -157,12 +157,12 @@ $form_grid->addItem([
 	)->setId('operation-message-users')
 ]);
 
-array_unshift($data['mediatype_options'], ['name' => '- '._('All').' -', 'mediatypeid' => 0, 'status' => 0]);
+array_unshift($data['mediatype_options'], ['name' => _('All available'), 'mediatypeid' => 0, 'status' => 0]);
 
 $mediatypes = [];
 foreach ($data['mediatype_options'] as $mediatype) {
 	$mediatypes[] = (new CSelectOption($mediatype['mediatypeid'], $mediatype['name']))
-		->addClass($mediatype['status'] == MEDIA_TYPE_STATUS_DISABLED ? ZBX_STYLE_RED : null);
+		->addClass($mediatype['status'] == MEDIA_TYPE_STATUS_DISABLED ? ZBX_STYLE_COLOR_NEGATIVE : null);
 }
 
 // Operation message media type row.
@@ -186,7 +186,7 @@ $select_opmessage_mediatype = (new CSelect('operation[opmessage][mediatypeid]'))
 	->setValue($operation['opmessage']['mediatypeid'] ?? 0);
 
 $form_grid->addItem([
-	(new CLabel(_('Send only to'), $select_opmessage_mediatype->getFocusableElementId()))
+	(new CLabel(_('Send to media type'), $select_opmessage_mediatype->getFocusableElementId()))
 		->setId('operation-message-mediatype-only-label'),
 	(new CFormField($select_opmessage_mediatype))
 		->setId('operation-message-mediatype-only')

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -56,17 +56,12 @@ class CWidgetFieldTagsView extends CWidgetFieldView {
 
 	public function getJavaScript(): string {
 		return '
-			jQuery("#tags_table_'.$this->field->getName().'")
-				.dynamicRows({template: "#'.$this->field->getName().'-row-tmpl", allow_empty: true})
-				.on("afteradd.dynamicRows", function() {
-					const rows = this.querySelectorAll(".form_row");
-					new CTagFilterItem(rows[rows.length - 1]);
-				});
-
-			// Init existing fields once loaded.
-			document.querySelectorAll("#tags_table_'.$this->field->getName().' .form_row").forEach(row => {
-				new CTagFilterItem(row);
-			});
+			CWidgetForm.addField(
+				new CWidgetFieldTags('.json_encode([
+					'name' => $this->field->getName(),
+					'form_name' => $this->form_name
+				]).')
+			);
 		';
 	}
 

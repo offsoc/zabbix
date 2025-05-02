@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,9 +14,9 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
 
 /**
  * @backup module, widget
@@ -48,7 +48,6 @@ class testPageAdministrationGeneralModules extends CWebTest {
 	private static $widget_descriptions = [
 		'Action log' => 'Displays records about executed action operations (notifications, remote commands).',
 		'Clock' => 'Displays local, server, or specified host time.',
-		'Data overview' => 'Displays the latest item data and current status of each item for selected hosts.',
 		'Discovery status' => 'Displays the status summary of the active network discovery rules.',
 		'Favorite graphs' => 'Displays shortcuts to the most needed graphs (marked as favorite).',
 		'Favorite maps' => 'Displays shortcuts to the most needed network maps (marked as favorite).',
@@ -60,7 +59,9 @@ class testPageAdministrationGeneralModules extends CWebTest {
 				'an item prototype.',
 		'Honeycomb' => 'Displays item values as a honeycomb.',
 		'Host availability' => 'Displays the host count by status (available/unavailable/unknown).',
+		'Host card' => 'Displays the most relevant host information.',
 		'Host navigator' => 'Displays host hierarchy with ability to control other widgets based on selected host.',
+		'Item card' => 'Displays the most relevant information about an item.',
 		'Item history' => 'Displays the latest data for the selected items with an option to add progress bar visualizations, '.
 				'customize report columns, and display images for binary data types.',
 		'Item navigator' => 'Displays item hierarchy with ability to control other widgets based on selected item.',
@@ -78,6 +79,7 @@ class testPageAdministrationGeneralModules extends CWebTest {
 				'associated components.',
 		'Top hosts' => 'Displays top N hosts that have the highest or the lowest item value (for example, CPU load) '.
 				'with an option to add progress-bar visualizations and customize report columns.',
+		'Top items' => 'Displays the latest item data and current status of each item for selected hosts.',
 		'Top triggers' => 'Displays top N triggers that have the most problems within the period of evaluation,'.
 				' sorted by the number of problems.',
 		'Trigger overview' => 'Displays trigger states for selected hosts.',
@@ -508,6 +510,20 @@ class testPageAdministrationGeneralModules extends CWebTest {
 				'Status' => 'Disabled'
 			],
 			[
+				'Name' => 'Test Broadcaster',
+				'Version' => '1.0',
+				'Author' => 'Zabbix',
+				'Description' => 'Allows to test listening functionality of other widgets.',
+				'Status' => 'Disabled'
+			],
+			[
+				'Name' => 'Test Listener',
+				'Version' => '1.0',
+				'Author' => 'Zabbix',
+				'Description' => 'Allows to test broadcasting functionality of other widgets.',
+				'Status' => 'Disabled'
+			],
+			[
 				'Name' => 'шестой модуль',
 				'Version' => 'бета 2',
 				'Author' => 'Работник Заббикса',
@@ -799,7 +815,7 @@ class testPageAdministrationGeneralModules extends CWebTest {
 							[
 								'name' => 'Your profile',
 								'action' => 'userprofile.edit',
-								'message' => 'User profile: Zabbix Administrator',
+								'message' => 'Profile',
 								'check_disabled' => false
 							],
 							[
@@ -958,7 +974,9 @@ class testPageAdministrationGeneralModules extends CWebTest {
 						'5th Module',
 						'Clock2',
 						'Empty widget',
+						'Test Broadcaster',
 						'Test CSRF token',
+						'Test Listener',
 						'шестой модуль'
 					]
 				]
@@ -991,12 +1009,14 @@ class testPageAdministrationGeneralModules extends CWebTest {
 		$row = $table->findRow('Name', '2nd Module name !@#$%^&*()_+');
 		if ($row->getColumn('Status')->getText() !== 'Enabled') {
 			$row->query('link:Disabled')->one()->click();
+			$this->assertMessage(TEST_GOOD, 'Module enabled');
 		}
 
 		// Apply and submit the filter from data provider.
 		$form = $this->query('name:zbx_filter')->asForm()->one();
 		$form->fill($data['filter']);
 		$form->submit();
+		$table->waitUntilReloaded();
 		$this->page->waitUntilReady();
 		// Check (using module name) that only the expected filters are returned in the list.
 		$this->assertTableDataColumn(CTestArrayHelper::get($data, 'expected'));

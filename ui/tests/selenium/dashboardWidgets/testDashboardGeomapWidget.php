@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,16 +13,16 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../../include/helpers/CDataHelper.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
 
 /**
- * @backup config, widget
+ * @backup settings, widget
  *
  * @onBefore prepareDashboardData
  */
-class testDashboardGeomapWidget extends CWebTest {
+class testDashboardGeomapWidget extends testWidgets {
 
 	/**
 	 * Id of the dashboard where geomap widget is created and updated.
@@ -575,7 +575,7 @@ class testDashboardGeomapWidget extends CWebTest {
 			$values = $form->getFields()->asValues();
 		}
 		else {
-			$form->fill(['Type' => 'Geomap']);
+			$form->fill(['Type' => CFormElement::RELOADABLE_FILL('Geomap')]);
 		}
 
 		if ($cancel || !$save_dashboard) {

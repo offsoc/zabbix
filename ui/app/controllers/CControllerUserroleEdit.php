@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -88,6 +88,8 @@ class CControllerUserroleEdit extends CControllerUserroleEditGeneral {
 			'actions_manage_sla' => 						'in 0,1',
 			'actions_invoke_execute_now' =>					'in 0,1',
 			'actions_change_problem_ranking' =>				'in 0,1',
+			'actions_edit_own_media' =>						'in 0,1',
+			'actions_edit_user_media' =>					'in 0,1',
 			'ui_default_access' => 							'in 0,1',
 			'modules_default_access' => 					'in 0,1',
 			'actions_default_access' => 					'in 0,1',

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -2822,6 +2822,8 @@ static void	execute_operations(const zbx_db_event *event, zbx_uint64_t actionid)
 
 	if (0 != new_optagids.values_num || 0 != del_optagids.values_num)
 		op_add_del_tags(event, &cfg,  &new_optagids, &del_optagids);
+
+	zbx_config_clean(&cfg);
 
 	zbx_vector_uint64_destroy(&del_groupids);
 	zbx_vector_uint64_destroy(&new_groupids);

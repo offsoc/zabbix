@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -297,22 +297,28 @@ function getPosition(obj) {
 }
 
 /**
- * Opens popup content in overlay dialogue.
+ * Preload and display popup dialogue.
  *
- * @param {string}           action              Popup controller related action.
- * @param {array|object}     parameters          Array with key/value pairs that will be used as query for popup
- *                                               request.
- *
+ * @param {string}           action              Popup action (controller).
+ * @param {Array|Object}     parameters          Popup action (controller) parameters.
+ * @param {string|null}      dialogueid          Dialogue overlay ID.
  * @param {string}           dialogue_class      CSS class, usually based on .modal-popup and .modal-popup-{size}.
- * @param {string|null}      dialogueid          ID of overlay dialogue.
- * @param {HTMLElement|null} trigger_element     UI element which was clicked to open overlay dialogue.
- * @param {bool}             prevent_navigation  Show warning when navigating away from an active dialogue.
+ * @param {boolean}	         is_modal            Whether to prevent interaction with background objects.
+ * @param {boolean}	         is_draggable        Whether to allow dragging the form around.
+ * @param {string|undefined} position            Positioning strategy (Overlay.prototype.POSITION_*).
+ * @param {Object|null}      position_fix        Specific position, if not null.
+ * @param {HTMLElement|null} trigger_element     DOM element which triggered opening overlay dialogue.
+ * @param {boolean}          prevent_navigation  Show warning when navigating away from an active dialogue.
  *
  * @returns {Overlay}
  */
 function PopUp(action, parameters, {
 	dialogueid = null,
 	dialogue_class = '',
+	is_modal = true,
+	is_draggable = false,
+	position = undefined,
+	position_fix = null,
 	trigger_element = document.activeElement,
 	prevent_navigation = false
 } = {}) {
@@ -322,16 +328,25 @@ function PopUp(action, parameters, {
 
 	if (!overlay) {
 		overlay = overlayDialogue({
-			dialogueid,
 			title: '',
 			doc_url: '',
-			content: jQuery('<div>', {'height': '68px', class: 'is-loading'}),
-			class: 'modal-popup ' + dialogue_class,
+			content: jQuery('<div>', {'height': '68px', 'width': '105px', class: 'is-loading'}),
+			class: `modal-popup ${dialogue_class}`,
 			buttons: [],
-			element: trigger_element,
-			type: 'popup',
 			prevent_navigation
+		}, {
+			type: 'popup',
+			dialogueid,
+			is_modal,
+			is_draggable,
+			position,
+			position_fix,
+			trigger_element
 		});
+	}
+	else {
+		// Throw reload event for dialogs to shut down scripting properly.
+		overlay.$dialogue[0].dispatchEvent(new CustomEvent('dialogue.reload'));
 	}
 
 	overlay
@@ -381,6 +396,7 @@ function PopUp(action, parameters, {
 					doc_url: resp.doc_url,
 					content: resp.body,
 					controls: resp.controls,
+					class: `modal-popup ${resp.dialogue_class ?? dialogue_class}`,
 					buttons,
 					debug: resp.debug,
 					script_inline: resp.script_inline,
@@ -443,39 +459,6 @@ function PopUp(action, parameters, {
 }
 
 /**
- * Open "Update problem" dialog and manage URL change.
- *
- * @param {Object} parameters
- * @param {array}  parameters['eventids']  Eventids to update.
- * @param {object} trigger_element        (optional) UI element which was clicked to open overlay dialogue.
- *
- * @returns {Overlay}
- */
-function acknowledgePopUp(parameters, trigger_element) {
-	const overlay = PopUp('popup.acknowledge.edit', parameters,
-		{dialogue_class: 'modal-popup-generic', trigger_element}
-	);
-	const backurl = location.href;
-
-	overlay.trigger_parents = $(trigger_element).parents();
-
-	overlay.xhr.then(function() {
-		const url = new Curl('zabbix.php');
-		url.setArgument('action', 'popup');
-		url.setArgument('popup_action', 'acknowledge.edit');
-		url.setArgument('eventids', parameters.eventids);
-
-		history.replaceState({}, '', url.getUrl());
-	});
-
-	overlay.$dialogue[0].addEventListener('dialogue.close', () => {
-		history.replaceState({}, '', backurl);
-	}, {once: true});
-
-	return overlay;
-}
-
-/**
  * Function to add details about overlay UI elements in global overlays_stack variable.
  *
  * @param {string|Overlay} id       Unique overlay element identifier or Overlay object.
@@ -504,28 +487,29 @@ function addToOverlaysStack(id, element, type, xhr) {
 
 // Keydown handler. Closes last opened overlay UI element.
 function closeDialogHandler(event) {
-	if (event.which == 27) { // ESC
-		var dialog = overlays_stack.end();
-		if (typeof dialog !== 'undefined') {
-			switch (dialog.type) {
+	if (event.which === KEY_ESCAPE) {
+		const overlay = overlays_stack.end();
+
+		if (typeof overlay !== 'undefined') {
+			switch (overlay.type) {
 				// Close overlay popup.
 				case 'popup':
-					overlayDialogueDestroy(dialog.dialogueid);
+					overlayDialogueDestroy(overlay.dialogueid, Overlay.prototype.CLOSE_BY_USER);
 					break;
 
 				// Close overlay hintbox.
 				case 'hintbox':
-					hintBox.hideHint(dialog.element, true);
+					hintBox.hideHint(overlay.element, true);
 					break;
 
 				// Close popup menu overlays.
 				case 'menu-popup':
-					jQuery('.menu-popup.menu-popup-top:visible').menuPopup('close', dialog.element);
+					jQuery('.menu-popup.menu-popup-top:visible').menuPopup('close', overlay.element);
 					break;
 
 				// Close context menu preloader.
 				case 'preloader':
-					overlayPreloaderDestroy(dialog.dialogueid);
+					overlayPreloaderDestroy(overlay.dialogueid);
 					break;
 
 				// Close overlay time picker.
@@ -555,18 +539,14 @@ function closeDialogHandler(event) {
 }
 
 /**
- * Removed overlay from overlays stack and sets focus to source element.
+ * Remove overlay from stack and set focus to source element.
  *
- * @param {string} dialogueid		Id of dialogue, that is being closed.
- * @param {boolean} return_focus	If not FALSE, the element stored in overlay.element will be focused.
+ * @param {string}  dialogueid
+ * @param {boolean} return_focus  If true, overlay.element will be focused.
  *
- * @return {object|undefined|null}  Overlay object, if found.
+ * @return {Object|undefined}  Overlay object, if found.
  */
-function removeFromOverlaysStack(dialogueid, return_focus) {
-	if (return_focus !== false) {
-		return_focus = true;
-	}
-
+function removeFromOverlaysStack(dialogueid, return_focus = true) {
 	const overlay = overlays_stack.removeById(dialogueid);
 
 	if (overlay && return_focus) {
@@ -683,41 +663,6 @@ function addSelectedValues(object, parentid) {
 	});
 
 	jQuery(document).trigger('add.popup', data);
-}
-
-/**
- * Add media.
- *
- * @param {string} formname			name of destination form
- * @param {integer} media			media id. If -1, then assumes that this is new media
- * @param {integer} mediatypeid		media type id
- * @param {string} sendto			media sendto value
- * @param {string} period			media period value
- * @param {string} active			media active value
- * @param {string} severity			media severity value
- *
- * @returns true
- */
-function add_media(formname, media, mediatypeid, sendto, period, active, severity) {
-	var form = window.document.forms[formname];
-	var media_name = (media > -1) ? 'medias[' + media + ']' : 'new_media';
-
-	window.create_var(form, media_name + '[mediatypeid]', mediatypeid);
-	if (typeof sendto === "object") {
-		window.removeVarsBySelector(form, 'input[name^="'+media_name+'[sendto]"]');
-		jQuery(sendto).each(function(i, st) {
-			window.create_var(form, media_name + '[sendto]['+i+']', st);
-		});
-	}
-	else {
-		window.create_var(form, media_name + '[sendto]', sendto);
-	}
-	window.create_var(form, media_name + '[period]', period);
-	window.create_var(form, media_name + '[active]', active);
-	window.create_var(form, media_name + '[severity]', severity);
-
-	form.submit();
-	return true;
 }
 
 /**
@@ -917,7 +862,7 @@ function showHideVisible(obj) {
 /**
  * Check if element is visible.
  *
- * @param {object} element
+ * @param {Element} element
  *
  * @return {boolean}
  */

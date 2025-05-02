@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,15 +14,15 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTagBehavior.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../behaviors/CTagBehavior.php';
+require_once __DIR__.'/../../include/helpers/CDataHelper.php';
 
 /**
  * @backup profiles
  *
- * @dataSource TagFilter, UserPermissions
+ * @dataSource TagFilter, UserPermissions, WidgetCommunication, DynamicItemWidgets
  */
 class testPageMonitoringHosts extends CWebTest {
 
@@ -185,6 +185,7 @@ class testPageMonitoringHosts extends CWebTest {
 					],
 					'expected' => [
 						'1_Host_to_check_Monitoring_Overview',
+						'2nd host for widgets',
 						'ЗАББИКС Сервер'
 					]
 				]
@@ -198,7 +199,8 @@ class testPageMonitoringHosts extends CWebTest {
 						]
 					],
 					'expected' => [
-						'1_Host_to_check_Monitoring_Overview'
+						'1_Host_to_check_Monitoring_Overview',
+						'3rd host for widgets'
 					]
 				]
 			],
@@ -211,6 +213,7 @@ class testPageMonitoringHosts extends CWebTest {
 						]
 					],
 					'expected' => [
+						'1st host for widgets',
 						'1_Host_to_check_Monitoring_Overview'
 					]
 				]
@@ -332,7 +335,10 @@ class testPageMonitoringHosts extends CWebTest {
 						]
 					],
 					'expected' => [
+						'1st host for widgets',
 						'1_Host_to_check_Monitoring_Overview',
+						'2nd host for widgets',
+						'3rd host for widgets',
 						'3_Host_to_check_Monitoring_Overview',
 						'4_Host_to_check_Monitoring_Overview',
 						'Host for tag permissions',

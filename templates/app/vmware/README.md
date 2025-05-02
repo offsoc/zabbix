@@ -8,11 +8,11 @@ This template set is designed for the effortless deployment of VMware vCenter an
 - The template "VMware Guest" is used in discovery and normally should not be manually linked to a host.
 - The template "VMware Hypervisor" can be used in discovery as well as manually linked to a host.
 
-For additional information, please see [Zabbix documentation on VM monitoring](https://www.zabbix.com/documentation/7.2/manual/vm_monitoring).
+For additional information, please see [Zabbix documentation on VM monitoring](https://www.zabbix.com/documentation/7.4/manual/vm_monitoring).
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -21,7 +21,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -63,7 +63,7 @@ Additional resources:
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
 |Get alarms|<p>Get alarm status.</p>|Simple check|vmware.alarms.get[{$VMWARE.URL}]|
-|Event log|<p>Collect VMware event log. See also: https://www.zabbix.com/documentation/7.2/manual/config/items/preprocessing/examples#filtering_vmware_event_log_records</p>|Simple check|vmware.eventlog[{$VMWARE.URL},skip]|
+|Event log|<p>Collect VMware event log. See also: https://www.zabbix.com/documentation/7.4/manual/config/items/preprocessing/examples#filtering_vmware_event_log_records</p>|Simple check|vmware.eventlog[{$VMWARE.URL},skip]|
 |Full name|<p>VMware service full name.</p>|Simple check|vmware.fullname[{$VMWARE.URL}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1d`</p></li></ul>|
 |Version|<p>VMware service version.</p>|Simple check|vmware.version[{$VMWARE.URL}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1d`</p></li></ul>|
 |Get Overall Health VC State|<p>Gets overall health of the system. This item works only with VMware vCenter versions above 6.5.</p>|Script|vmware.health.get|
@@ -74,8 +74,8 @@ Additional resources:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get Overall Health VC State|<p>Failed to get data. Check debug log for more information.</p>|`length(last(/VMware/vmware.health.check))>0`|Warning||
-|Overall Health VC State is not Green|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive.</p>|`last(/VMware/vmware.health.state)>0 and last(/VMware/vmware.health.state)<>6`|Average||
+|VMware: Failed to get Overall Health VC State|<p>Failed to get data. Check debug log for more information.</p>|`length(last(/VMware/vmware.health.check))>0`|Warning||
+|VMware: Overall Health VC State is not Green|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive.</p>|`last(/VMware/vmware.health.state)>0 and last(/VMware/vmware.health.state)<>6`|Average||
 
 ### LLD rule VMware alarm discovery
 
@@ -93,7 +93,7 @@ Additional resources:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|{#VMWARE.ALARMS.NAME}|<p>{#VMWARE.ALARMS.DESC}</p>|`last(/VMware/vmware.alarms.status["{#VMWARE.ALARMS.KEY}"])<>-1`|Not_classified||
+|VMware: {#VMWARE.ALARMS.NAME}|<p>{#VMWARE.ALARMS.DESC}</p>|`last(/VMware/vmware.alarms.status["{#VMWARE.ALARMS.KEY}"])<>-1`|Not_classified||
 
 ### LLD rule VMware cluster discovery
 
@@ -111,8 +111,8 @@ Additional resources:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|The [{#CLUSTER.NAME}] status is Red|<p>A cluster enabled for DRS becomes invalid (red) when the tree is no longer internally consistent, that is, when resource constraints are not observed. See also: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-resource-management/GUID-C7417CAA-BD38-41D0-9529-9E7A5898BB12.html</p>|`last(/VMware/vmware.cluster.status[{$VMWARE.URL},{#CLUSTER.NAME}])=3`|High||
-|The [{#CLUSTER.NAME}] status is Yellow|<p>A cluster becomes overcommitted (yellow) when the tree of resource pools and virtual machines is internally consistent but the cluster does not have the capacity to support all the resources reserved by the child resource pools. See also: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-resource-management/GUID-ED8240A0-FB54-4A31-BD3D-F23FE740F10C.html</p>|`last(/VMware/vmware.cluster.status[{$VMWARE.URL},{#CLUSTER.NAME}])=2`|Average|**Depends on**:<br><ul><li>The [{#CLUSTER.NAME}] status is Red</li></ul>|
+|VMware: The [{#CLUSTER.NAME}] status is Red|<p>A cluster enabled for DRS becomes invalid (red) when the tree is no longer internally consistent, that is, when resource constraints are not observed. See also: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-resource-management/GUID-C7417CAA-BD38-41D0-9529-9E7A5898BB12.html</p>|`last(/VMware/vmware.cluster.status[{$VMWARE.URL},{#CLUSTER.NAME}])=3`|High||
+|VMware: The [{#CLUSTER.NAME}] status is Yellow|<p>A cluster becomes overcommitted (yellow) when the tree of resource pools and virtual machines is internally consistent but the cluster does not have the capacity to support all the resources reserved by the child resource pools. See also: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-resource-management/GUID-ED8240A0-FB54-4A31-BD3D-F23FE740F10C.html</p>|`last(/VMware/vmware.cluster.status[{$VMWARE.URL},{#CLUSTER.NAME}])=2`|Average|**Depends on**:<br><ul><li>VMware: The [{#CLUSTER.NAME}] status is Red</li></ul>|
 
 ### LLD rule VMware datastore discovery
 
@@ -124,19 +124,19 @@ Additional resources:
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Average read IOPS of the datastore [{#DATASTORE}]|<p>IOPS for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.datastore.read[{$VMWARE.URL},{#DATASTORE},rps]|
-|Average write IOPS of the datastore [{#DATASTORE}]|<p>IOPS for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.datastore.write[{$VMWARE.URL},{#DATASTORE},rps]|
-|Average read latency of the datastore [{#DATASTORE}]|<p>Amount of time for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.datastore.read[{$VMWARE.URL},{#DATASTORE},latency]|
-|Free space on datastore [{#DATASTORE}] (percentage)|<p>VMware datastore free space (percentage from the total).</p>|Simple check|vmware.datastore.size[{$VMWARE.URL},{#DATASTORE},pfree]|
-|Total size of datastore [{#DATASTORE}]|<p>VMware datastore space in bytes.</p>|Simple check|vmware.datastore.size[{$VMWARE.URL},{#DATASTORE}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1h`</p></li></ul>|
-|Average write latency of the datastore [{#DATASTORE}]|<p>Amount of time for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.datastore.write[{$VMWARE.URL},{#DATASTORE},latency]|
+|Average read IOPS of the datastore [{#DATASTORE}]|<p>IOPS for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.datastore.read[{$VMWARE.URL},{#DATASTORE.UUID},rps]|
+|Average write IOPS of the datastore [{#DATASTORE}]|<p>IOPS for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.datastore.write[{$VMWARE.URL},{#DATASTORE.UUID},rps]|
+|Average read latency of the datastore [{#DATASTORE}]|<p>Amount of time for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.datastore.read[{$VMWARE.URL},{#DATASTORE.UUID},latency]|
+|Free space on datastore [{#DATASTORE}] (percentage)|<p>VMware datastore free space (percentage from the total).</p>|Simple check|vmware.datastore.size[{$VMWARE.URL},{#DATASTORE.UUID},pfree]|
+|Total size of datastore [{#DATASTORE}]|<p>VMware datastore space in bytes.</p>|Simple check|vmware.datastore.size[{$VMWARE.URL},{#DATASTORE.UUID}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1h`</p></li></ul>|
+|Average write latency of the datastore [{#DATASTORE}]|<p>Amount of time for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.datastore.write[{$VMWARE.URL},{#DATASTORE.UUID},latency]|
 
 ### Trigger prototypes for VMware datastore discovery
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#DATASTORE}]: Free space is critically low|<p>Datastore free space has fallen below the critical threshold.</p>|`last(/VMware/vmware.datastore.size[{$VMWARE.URL},{#DATASTORE},pfree])<{$VMWARE.DATASTORE.SPACE.CRIT}`|High||
-|[{#DATASTORE}]: Free space is low|<p>Datastore free space has fallen below the warning threshold.</p>|`last(/VMware/vmware.datastore.size[{$VMWARE.URL},{#DATASTORE},pfree])<{$VMWARE.DATASTORE.SPACE.WARN}`|Warning|**Depends on**:<br><ul><li>[{#DATASTORE}]: Free space is critically low</li></ul>|
+|VMware: [{#DATASTORE}]: Free space is critically low|<p>Datastore free space has fallen below the critical threshold.</p>|`last(/VMware/vmware.datastore.size[{$VMWARE.URL},{#DATASTORE.UUID},pfree])<{$VMWARE.DATASTORE.SPACE.CRIT}`|High||
+|VMware: [{#DATASTORE}]: Free space is low|<p>Datastore free space has fallen below the warning threshold.</p>|`last(/VMware/vmware.datastore.size[{$VMWARE.URL},{#DATASTORE.UUID},pfree])<{$VMWARE.DATASTORE.SPACE.WARN}`|Warning|**Depends on**:<br><ul><li>VMware: [{#DATASTORE}]: Free space is critically low</li></ul>|
 
 ### LLD rule VMware hypervisor discovery
 
@@ -208,11 +208,11 @@ Additional resources:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Snapshot consolidation needed|<p>Snapshot consolidation needed.</p>|`last(/VMware Guest/vmware.vm.consolidationneeded[{$VMWARE.URL},{$VMWARE.VM.UUID}])=0`|Average|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Hypervisor is in the maintenance mode</li></ul>|
-|VM is not running|<p>VMware virtual machine is not running.</p>|`last(/VMware Guest/vmware.vm.state[{$VMWARE.URL},{$VMWARE.VM.UUID}]) <> 2`|Average|**Depends on**:<br><ul><li>Hypervisor is in the maintenance mode</li></ul>|
-|VMware Tools is not running|<p>VMware Tools is not running on the VM.</p>|`last(/VMware Guest/vmware.vm.tools[{$VMWARE.URL},{$VMWARE.VM.UUID},status]) = 1`|Warning|**Depends on**:<br><ul><li>VM is not running</li><li>Hypervisor is in the maintenance mode</li></ul>|
-|Hypervisor is in the maintenance mode|<p>Hypervisor is in the maintenance mode. All other problem on the host will be suppressed.</p>|`last(/VMware Guest/vmware.vm.hv.maintenance[{$VMWARE.URL},{$VMWARE.VM.UUID}])=1 and {$VMWARE.HYPERVISOR.MAINTENANCE}=1`|Info||
-|VM has been restarted|<p>Uptime is less than 10 minutes.</p>|`(between(last(/VMware Guest/vmware.vm.guest.osuptime[{$VMWARE.URL},{$VMWARE.VM.UUID}]),1,10m)=1 or between(last(/VMware Guest/vmware.vm.uptime[{$VMWARE.URL},{$VMWARE.VM.UUID}]),1,10m)=1) and last(/VMware Guest/vmware.vm.powerstate[{$VMWARE.URL},{$VMWARE.VM.UUID}]) = 1`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: Snapshot consolidation needed|<p>Snapshot consolidation needed.</p>|`last(/VMware Guest/vmware.vm.consolidationneeded[{$VMWARE.URL},{$VMWARE.VM.UUID}])=0`|Average|**Manual close**: Yes<br>**Depends on**:<br><ul><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: VM is not running|<p>VMware virtual machine is not running.</p>|`last(/VMware Guest/vmware.vm.state[{$VMWARE.URL},{$VMWARE.VM.UUID}]) <> 2`|Average|**Depends on**:<br><ul><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: VMware Tools is not running|<p>VMware Tools is not running on the VM.</p>|`last(/VMware Guest/vmware.vm.tools[{$VMWARE.URL},{$VMWARE.VM.UUID},status]) = 1`|Warning|**Depends on**:<br><ul><li>VMware Guest: VM is not running</li><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: Hypervisor is in the maintenance mode|<p>Hypervisor is in the maintenance mode. All other problem on the host will be suppressed.</p>|`last(/VMware Guest/vmware.vm.hv.maintenance[{$VMWARE.URL},{$VMWARE.VM.UUID}])=1 and {$VMWARE.HYPERVISOR.MAINTENANCE}=1`|Info||
+|VMware Guest: VM has been restarted|<p>Uptime is less than 10 minutes.</p>|`(between(last(/VMware Guest/vmware.vm.guest.osuptime[{$VMWARE.URL},{$VMWARE.VM.UUID}]),1,10m)=1 or between(last(/VMware Guest/vmware.vm.uptime[{$VMWARE.URL},{$VMWARE.VM.UUID}]),1,10m)=1) and last(/VMware Guest/vmware.vm.powerstate[{$VMWARE.URL},{$VMWARE.VM.UUID}]) = 1`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
 
 ### LLD rule Network device discovery
 
@@ -228,7 +228,7 @@ Additional resources:
 |Number of packets received on interface [{#IFBACKINGDEVICE}]/[{#IFDESC}]|<p>VMware virtual machine network interface input statistics (packets per second).</p>|Simple check|vmware.vm.net.if.in[{$VMWARE.URL},{$VMWARE.VM.UUID},{#IFNAME},pps]|
 |Number of bytes transmitted on interface [{#IFBACKINGDEVICE}]/[{#IFDESC}]|<p>VMware virtual machine network interface output statistics (bytes per second).</p>|Simple check|vmware.vm.net.if.out[{$VMWARE.URL},{$VMWARE.VM.UUID},{#IFNAME},bps]|
 |Number of packets transmitted on interface [{#IFBACKINGDEVICE}]/[{#IFDESC}]|<p>VMware virtual machine network interface output statistics (packets per second).</p>|Simple check|vmware.vm.net.if.out[{$VMWARE.URL},{$VMWARE.VM.UUID},{#IFNAME},pps]|
-|Network utilization on interface [{#IFBACKINGDEVICE}]/[{#IFDESC}]|<p>VMware virtual machine network utilization (combined transmit and receive rates) during the interval.</p>|Simple check|vmware.vm.net.if.usage[{$VMWARE.URL},{$VMWARE.VM.UUID},{#IFNAME}]<p>**Preprocessing**</p><ul><li><p>Custom multiplier: `1024`</p></li></ul>|
+|Network utilization on interface [{#IFBACKINGDEVICE}]/[{#IFDESC}]|<p>VMware virtual machine network utilization (combined transmit and receive rates) during the interval.</p>|Simple check|vmware.vm.net.if.usage[{$VMWARE.URL},{$VMWARE.VM.UUID},{#IFNAME}]|
 
 ### LLD rule Disk device discovery
 
@@ -253,7 +253,7 @@ Additional resources:
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Mounted filesystem discovery|<p>Discovery of all guest file systems.</p>|Simple check|vmware.vm.vfs.fs.discovery[{$VMWARE.URL},{$VMWARE.VM.UUID}]|
+|Mounted filesystem discovery|<p>Discovery of all guest file systems.</p>|Simple check|vmware.vm.vfs.fs.discovery[{$VMWARE.URL},{$VMWARE.VM.UUID}]<p>**Preprocessing**</p><ul><li><p>JavaScript: `The text is too long. Please see the template.`</p></li></ul>|
 
 ### Item prototypes for Mounted filesystem discovery
 
@@ -268,8 +268,8 @@ Additional resources:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#FSNAME}]: Disk space is critically low|<p>The disk free space on [{#FSNAME}] has been less than `{$VMWARE.VM.FS.PFREE.MIN.CRIT:"{#FSNAME}"}`% for 5m.</p>|`max(/VMware Guest/vmware.vm.vfs.fs.size[{$VMWARE.URL},{$VMWARE.VM.UUID},{#FSNAME},pfree],5m)<{$VMWARE.VM.FS.PFREE.MIN.CRIT:"{#FSNAME}"} and {$VMWARE.VM.FS.TRIGGER.USED:"{#FSNAME}"}=1`|Average|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Hypervisor is in the maintenance mode</li></ul>|
-|[{#FSNAME}]: Disk space is low|<p>The disk free space on [{#FSNAME}] has been less than `{$VMWARE.VM.FS.PFREE.MIN.WARN:"{#FSNAME}"}`% for 5m.</p>|`max(/VMware Guest/vmware.vm.vfs.fs.size[{$VMWARE.URL},{$VMWARE.VM.UUID},{#FSNAME},pfree],5m)<{$VMWARE.VM.FS.PFREE.MIN.WARN:"{#FSNAME}"} and {$VMWARE.VM.FS.TRIGGER.USED:"{#FSNAME}"}=1`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>[{#FSNAME}]: Disk space is critically low</li><li>Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: [{#FSNAME}]: Disk space is critically low|<p>The disk free space on [{#FSNAME}] has been less than `{$VMWARE.VM.FS.PFREE.MIN.CRIT:"{#FSNAME}"}`% for 5m.</p>|`max(/VMware Guest/vmware.vm.vfs.fs.size[{$VMWARE.URL},{$VMWARE.VM.UUID},{#FSNAME},pfree],5m)<{$VMWARE.VM.FS.PFREE.MIN.CRIT:"{#FSNAME}"} and {$VMWARE.VM.FS.TRIGGER.USED:"{#FSNAME}"}=1`|Average|**Manual close**: Yes<br>**Depends on**:<br><ul><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
+|VMware Guest: [{#FSNAME}]: Disk space is low|<p>The disk free space on [{#FSNAME}] has been less than `{$VMWARE.VM.FS.PFREE.MIN.WARN:"{#FSNAME}"}`% for 5m.</p>|`max(/VMware Guest/vmware.vm.vfs.fs.size[{$VMWARE.URL},{$VMWARE.VM.UUID},{#FSNAME},pfree],5m)<{$VMWARE.VM.FS.PFREE.MIN.WARN:"{#FSNAME}"} and {$VMWARE.VM.FS.TRIGGER.USED:"{#FSNAME}"}=1`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>VMware Guest: [{#FSNAME}]: Disk space is critically low</li><li>VMware Guest: Hypervisor is in the maintenance mode</li></ul>|
 
 # VMware Hypervisor
 
@@ -279,13 +279,13 @@ This template is designed for the effortless deployment of VMware ESX hypervisor
 
 This template can be used in discovery as well as manually linked to a host.
 
-For additional information, please see [Zabbix documentation on VM monitoring](https://www.zabbix.com/documentation/7.2/manual/vm_monitoring).
+For additional information, please see [Zabbix documentation on VM monitoring](https://www.zabbix.com/documentation/7.4/manual/vm_monitoring).
 
 To use this template as manually linked to a host, attach it to the host and manually set the value of the `{$VMWARE.HV.UUID}` macro.
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -294,7 +294,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -372,10 +372,10 @@ To use this template as manually linked to a host:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Hypervisor is down|<p>The service is unavailable or is not accepting ICMP pings.</p>|`last(/VMware Hypervisor/icmpping[])=0`|Average|**Manual close**: Yes|
-|The {$VMWARE.HV.UUID} health is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive. Security patches might be available.</p>|`last(/VMware Hypervisor/vmware.hv.status[{$VMWARE.URL},{$VMWARE.HV.UUID}])=3`|High||
-|The {$VMWARE.HV.UUID} health is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.status[{$VMWARE.URL},{$VMWARE.HV.UUID}])=2`|Average|**Depends on**:<br><ul><li>The {$VMWARE.HV.UUID} health is Red</li></ul>|
-|Hypervisor has been restarted|<p>Uptime is less than 10 minutes.</p>|`last(/VMware Hypervisor/vmware.hv.uptime[{$VMWARE.URL},{$VMWARE.HV.UUID}])<10m`|Warning|**Manual close**: Yes|
+|VMware Hypervisor: Hypervisor is down|<p>The service is unavailable or is not accepting ICMP pings.</p>|`last(/VMware Hypervisor/icmpping[])=0`|Average|**Manual close**: Yes|
+|VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive. Security patches might be available.</p>|`last(/VMware Hypervisor/vmware.hv.status[{$VMWARE.URL},{$VMWARE.HV.UUID}])=3`|High||
+|VMware Hypervisor: The {$VMWARE.HV.UUID} health is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.status[{$VMWARE.URL},{$VMWARE.HV.UUID}])=2`|Average|**Depends on**:<br><ul><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li></ul>|
+|VMware Hypervisor: Hypervisor has been restarted|<p>Uptime is less than 10 minutes.</p>|`last(/VMware Hypervisor/vmware.hv.uptime[{$VMWARE.URL},{$VMWARE.HV.UUID}])<10m`|Warning|**Manual close**: Yes|
 
 ### LLD rule Network interface discovery
 
@@ -399,21 +399,21 @@ To use this template as manually linked to a host:
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Average read IOPS of the datastore [{#DATASTORE}]|<p>Average IOPS for a read operation from the datastore.</p>|Simple check|vmware.hv.datastore.read[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},rps]|
-|Average write IOPS of the datastore [{#DATASTORE}]|<p>Average IOPS for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.write[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},rps]|
-|Average read latency of the datastore [{#DATASTORE}]|<p>Average amount of time for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.read[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},latency]|
-|Free space on datastore [{#DATASTORE}] (percentage)|<p>VMware datastore free space (percentage from the total).</p>|Simple check|vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},pfree]|
-|Total size of datastore [{#DATASTORE}]|<p>VMware datastore space in bytes.</p>|Simple check|vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1d`</p></li></ul>|
-|Average write latency of the datastore [{#DATASTORE}]|<p>Average amount of time for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.write[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},latency]|
-|Multipath count for datastore [{#DATASTORE}]|<p>Number of available datastore paths.</p>|Simple check|vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE}]|
+|Average read IOPS of the datastore [{#DATASTORE}]|<p>Average IOPS for a read operation from the datastore.</p>|Simple check|vmware.hv.datastore.read[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},rps]|
+|Average write IOPS of the datastore [{#DATASTORE}]|<p>Average IOPS for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.write[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},rps]|
+|Average read latency of the datastore [{#DATASTORE}]|<p>Average amount of time for a read operation from the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.read[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},latency]|
+|Free space on datastore [{#DATASTORE}] (percentage)|<p>VMware datastore free space (percentage from the total).</p>|Simple check|vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},pfree]|
+|Total size of datastore [{#DATASTORE}]|<p>VMware datastore space in bytes.</p>|Simple check|vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID}]<p>**Preprocessing**</p><ul><li><p>Discard unchanged with heartbeat: `1d`</p></li></ul>|
+|Average write latency of the datastore [{#DATASTORE}]|<p>Average amount of time for a write operation to the datastore (milliseconds).</p>|Simple check|vmware.hv.datastore.write[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},latency]|
+|Multipath count for datastore [{#DATASTORE}]|<p>Number of available datastore paths.</p>|Simple check|vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID}]|
 
 ### Trigger prototypes for Datastore discovery
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#DATASTORE}]: Free space is critically low|<p>Datastore free space has fallen below the critical threshold.</p>|`last(/VMware Hypervisor/vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},pfree])<{$VMWARE.HV.DATASTORE.SPACE.CRIT}`|High||
-|[{#DATASTORE}]: Free space is low|<p>Datastore free space has fallen below the warning threshold.</p>|`last(/VMware Hypervisor/vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE},pfree])<{$VMWARE.HV.DATASTORE.SPACE.WARN}`|Warning|**Depends on**:<br><ul><li>[{#DATASTORE}]: Free space is critically low</li></ul>|
-|The multipath count has been changed|<p>The number of available datastore paths is less than registered (`{#MULTIPATH.COUNT}`).</p>|`last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE}],#1)<>last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE}],#2) and last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE}])<{#MULTIPATH.COUNT}`|Average|**Manual close**: Yes|
+|VMware Hypervisor: [{#DATASTORE}]: Free space is critically low|<p>Datastore free space has fallen below the critical threshold.</p>|`last(/VMware Hypervisor/vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},pfree])<{$VMWARE.HV.DATASTORE.SPACE.CRIT}`|High||
+|VMware Hypervisor: [{#DATASTORE}]: Free space is low|<p>Datastore free space has fallen below the warning threshold.</p>|`last(/VMware Hypervisor/vmware.hv.datastore.size[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID},pfree])<{$VMWARE.HV.DATASTORE.SPACE.WARN}`|Warning|**Depends on**:<br><ul><li>VMware Hypervisor: [{#DATASTORE}]: Free space is critically low</li></ul>|
+|VMware Hypervisor: The multipath count has been changed|<p>The number of available datastore paths is less than registered (`{#MULTIPATH.COUNT}`).</p>|`last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID}],#1)<>last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID}],#2) and last(/VMware Hypervisor/vmware.hv.datastore.multipath[{$VMWARE.URL},{$VMWARE.HV.UUID},{#DATASTORE.UUID}])<{#MULTIPATH.COUNT}`|Average|**Manual close**: Yes|
 
 ### LLD rule Serial number discovery
 
@@ -443,8 +443,8 @@ To use this template as manually linked to a host:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|The {$VMWARE.HV.UUID} health is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive. Security patches might be available.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.health.state[{#SINGLETON}])=3`|High|**Depends on**:<br><ul><li>The {$VMWARE.HV.UUID} health is Red</li></ul>|
-|The {$VMWARE.HV.UUID} health is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.health.state[{#SINGLETON}])=2`|Average|**Depends on**:<br><ul><li>The {$VMWARE.HV.UUID} health is Red</li><li>The {$VMWARE.HV.UUID} health is Yellow</li><li>The {$VMWARE.HV.UUID} health is Red</li></ul>|
+|VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive. Security patches might be available.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.health.state[{#SINGLETON}])=3`|High|**Depends on**:<br><ul><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li></ul>|
+|VMware Hypervisor: The {$VMWARE.HV.UUID} health is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.health.state[{#SINGLETON}])=2`|Average|**Depends on**:<br><ul><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Yellow</li><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li></ul>|
 
 ### LLD rule Sensor discovery
 
@@ -462,8 +462,8 @@ To use this template as manually linked to a host:
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Sensor [{#NAME}] health state is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.state["{#NAME}"])=3`|High|**Depends on**:<br><ul><li>The {$VMWARE.HV.UUID} health is Red</li></ul>|
-|Sensor [{#NAME}] health state is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.state["{#NAME}"])=2`|Average|**Depends on**:<br><ul><li>The {$VMWARE.HV.UUID} health is Red</li><li>The {$VMWARE.HV.UUID} health is Yellow</li><li>Sensor [{#NAME}] health state is Red</li></ul>|
+|VMware Hypervisor: Sensor [{#NAME}] health state is Red|<p>One or more components in the appliance might be in an unusable status and the appliance might soon become unresponsive.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.state["{#NAME}"])=3`|High|**Depends on**:<br><ul><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li></ul>|
+|VMware Hypervisor: Sensor [{#NAME}] health state is Yellow|<p>One or more components in the appliance might soon become overloaded.</p>|`last(/VMware Hypervisor/vmware.hv.sensor.state["{#NAME}"])=2`|Average|**Depends on**:<br><ul><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Red</li><li>VMware Hypervisor: The {$VMWARE.HV.UUID} health is Yellow</li><li>VMware Hypervisor: Sensor [{#NAME}] health state is Red</li></ul>|
 
 ## Feedback
 

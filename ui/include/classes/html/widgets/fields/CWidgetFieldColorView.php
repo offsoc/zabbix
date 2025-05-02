@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -30,5 +30,16 @@ class CWidgetFieldColorView extends CWidgetFieldView {
 		return (new CColor($this->field->getName(), $this->field->getValue()))
 			->appendColorPickerJs(false)
 			->enableUseDefault(!$this->field->hasAllowInherited());
+	}
+
+	public function getJavaScript(): string {
+		return '
+			CWidgetForm.addField(
+				new CWidgetFieldColor('.json_encode([
+					'name' => $this->field->getName(),
+					'form_name' => $this->form_name
+				]).')
+			);
+		';
 	}
 }

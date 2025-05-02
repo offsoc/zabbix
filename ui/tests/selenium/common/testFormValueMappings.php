@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,10 +13,10 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../../include/helpers/CDataHelper.php';
 
 /**
  * Base class for Value mappings function tests.
@@ -1114,7 +1114,7 @@ class testFormValueMappings extends CWebTest {
 		$update_form->selectTab('Value mapping');
 		$update_form->query('id:visible_valuemaps')->asCheckbox()->one()->check();
 		$update_form->query('id:valuemap_add')->one()->click();
-		$mapping_form = COverlayDialogElement::find()->asForm()->all()->last()->waitUntilReady();
+		$mapping_form = COverlayDialogElement::find()->all()->last()->waitUntilReady()->asForm();
 
 		// Take a screenshot to test draggable object position of value mapping field.
 		$this->page->removeFocus();

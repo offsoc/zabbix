@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -78,16 +78,13 @@ class CControllerDashboardWidgetCheck extends CController {
 
 		$output = [];
 
-		if ($errors = $form->validate(true)) {
-			foreach ($errors as $error) {
-				error($error);
-			}
+		$messages = $form->validate(true);
 
-			$output['error']['messages'] = array_column(get_and_clear_messages(), 'message');
+		if ($messages) {
+			$output['messages'] = $messages;
 		}
-		else {
-			$output['fields'] = $form->getFieldsValues();
-		}
+
+		$output['fields'] = $form->getFieldsValues();
 
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode($output)]));
 	}

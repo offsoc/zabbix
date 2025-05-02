@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -31,13 +31,12 @@ class CControllerDashboardWidgetEdit extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'type' =>						'string|required',
-			'fields' =>						'array',
-			'templateid' =>					'db dashboard.templateid',
-			'name' =>						'string',
-			'view_mode' =>					'in '.implode(',', [ZBX_WIDGET_VIEW_MODE_NORMAL, ZBX_WIDGET_VIEW_MODE_HIDDEN_HEADER]),
-			'unique_id' =>					'string',
-			'dashboard_page_unique_id' =>	'string'
+			'type' =>		'string|required',
+			'fields' =>		'array',
+			'templateid' =>	'db dashboard.templateid',
+			'name' =>		'string',
+			'view_mode' =>	'in '.implode(',', [ZBX_WIDGET_VIEW_MODE_NORMAL, ZBX_WIDGET_VIEW_MODE_HIDDEN_HEADER]),
+			'is_new' =>		'in 1'
 		];
 
 		$ret = $this->validateInput($fields);
@@ -60,7 +59,7 @@ class CControllerDashboardWidgetEdit extends CController {
 			$this->setResponse(
 				(new CControllerResponseData([
 					'main_block' => json_encode([
-						'header' => $this->hasInput('unique_id') ? _('Edit widget') : _('Add widget'),
+						'header' => $this->hasInput('is_new') ? _('Add widget') : _('Edit widget'),
 						'error' => [
 							'messages' => array_column(get_and_clear_messages(), 'message')
 						]
@@ -95,9 +94,10 @@ class CControllerDashboardWidgetEdit extends CController {
 		natcasesort($known_types);
 		natcasesort($deprecated_types);
 
+		$values = $this->getInput('fields', $this->widget->getInitialFieldsValues());
 		$templateid = $this->hasInput('templateid') ? $this->getInput('templateid') : null;
 
-		$form = $this->widget->getForm($this->getInput('fields', []), $templateid);
+		$form = $this->widget->getForm($values, $templateid);
 		$form->validate();
 
 		$captions = $this->getValuesCaptions($form->fieldsToApi());
@@ -122,10 +122,7 @@ class CControllerDashboardWidgetEdit extends CController {
 			'templateid' => $templateid,
 			'fields' => $form_fields,
 			'view_mode' => $this->getInput('view_mode', ZBX_WIDGET_VIEW_MODE_NORMAL),
-			'unique_id' => $this->hasInput('unique_id') ? $this->getInput('unique_id') : null,
-			'dashboard_page_unique_id' => $this->hasInput('dashboard_page_unique_id')
-				? $this->getInput('dashboard_page_unique_id')
-				: null,
+			'is_new' => $this->hasInput('is_new'),
 			'url' => $url,
 			'user' => [
 				'debug_mode' => $this->getDebugMode()

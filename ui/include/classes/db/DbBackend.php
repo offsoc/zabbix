@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -133,13 +133,14 @@ abstract class DbBackend {
 	}
 
 	/**
-	 * Check the integrity of the table "config".
+	 * Check the integrity of the settings table.
 	 *
 	 * @return bool
 	 */
 	public function checkConfig() {
-		if (!DBfetch(DBselect('SELECT NULL FROM config c'))) {
+		if (!DBfetch(DBselect('SELECT NULL FROM settings s LIMIT 1'))) {
 			$this->setError(_('Unable to select configuration.'));
+
 			return false;
 		}
 

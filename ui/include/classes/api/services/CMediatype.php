@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -32,9 +32,9 @@ class CMediatype extends CApiService {
 
 	public const OUTPUT_FIELDS = ['mediatypeid', 'type', 'name', 'smtp_server', 'smtp_helo', 'smtp_email',
 		'exec_path', 'gsm_modem', 'username', 'passwd', 'status', 'smtp_port', 'smtp_security', 'smtp_verify_peer',
-		'smtp_verify_host', 'smtp_authentication', 'maxsessions', 'maxattempts', 'attempt_interval', 'content_type',
-		'message_format', 'script', 'timeout', 'process_tags', 'show_event_menu', 'event_menu_url', 'event_menu_name',
-		'description', 'provider', 'parameters'
+		'smtp_verify_host', 'smtp_authentication', 'maxsessions', 'maxattempts', 'attempt_interval', 'message_format',
+		'script', 'timeout', 'process_tags', 'show_event_menu', 'event_menu_url', 'event_menu_name', 'description',
+		'provider', 'parameters'
 	];
 
 	public const LIMITED_OUTPUT_FIELDS = ['mediatypeid', 'type', 'name', 'status', 'description', 'maxattempts'];
@@ -85,30 +85,31 @@ class CMediatype extends CApiService {
 			return [];
 		}
 
-		$output_fields = self::$userData['type'] == USER_TYPE_SUPER_ADMIN
-			? self::OUTPUT_FIELDS
-			: self::LIMITED_OUTPUT_FIELDS;
+		if (self::$userData['type'] == USER_TYPE_SUPER_ADMIN) {
+			$output_fields = self::OUTPUT_FIELDS;
+			$user_output_fields = CUser::OUTPUT_FIELDS;
+		}
+		else {
+			$output_fields = self::LIMITED_OUTPUT_FIELDS;
+			$user_output_fields = CUser::OWN_LIMITED_OUTPUT_FIELDS;
+		}
 
 		$api_input_rules = ['type' => API_OBJECT, 'flags' => API_ALLOW_UNEXPECTED, 'fields' => [
 			// filter
 			'filter' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => DB::getFilterFields('media_type', $output_fields)],
 			'search' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => DB::getSearchFields('media_type', $output_fields)],
-
 			// output
 			'output' =>					['type' => API_OUTPUT, 'in' => implode(',', $output_fields), 'default' => API_OUTPUT_EXTEND],
 			'selectMessageTemplates' =>	['type' => API_MULTIPLE, 'rules' => [
 											['if' => static fn(): bool => self::$userData['type'] == USER_TYPE_SUPER_ADMIN, 'type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', ['eventsource', 'recovery', 'subject', 'message']), 'default' => null],
 											['else' => true, 'type' => API_UNEXPECTED]
 			]],
-			'selectActions' =>  		['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', CAction::OUTPUT_FIELDS), 'default' => null]
+			'selectActions' =>  		['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', CAction::OUTPUT_FIELDS), 'default' => null],
+			'selectUsers' => 			['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', $user_output_fields), 'default' => null]
 		]];
 
 		if (!CApiInputValidator::validate($api_input_rules, $options, '/', $error)) {
 			self::exception(ZBX_API_ERROR_PARAMETERS, $error);
-		}
-
-		if (!$options['countOutput'] && is_array($options['output']) && in_array('content_type', $options['output'])) {
-			self::deprecated('Field "content_type" is deprecated.');
 		}
 
 		if (self::$userData['type'] != USER_TYPE_SUPER_ADMIN && $options['output'] === API_OUTPUT_EXTEND) {
@@ -172,13 +173,6 @@ class CMediatype extends CApiService {
 		$sqlParts = $this->applyQuerySortOptions($this->tableName(), $this->tableAlias(), $options, $sqlParts);
 		$res = DBselect(self::createSelectQueryFromParts($sqlParts), $sqlParts['limit']);
 
-		if (!$options['countOutput']) {
-			$add_content_type = $options['output'] === API_OUTPUT_EXTEND
-				|| in_array('content_type', $options['output']);
-			$remove_message_format = $options['output'] !== API_OUTPUT_EXTEND
-				&& !in_array('message_format', $options['output']);
-		}
-
 		while ($mediatype = DBfetch($res)) {
 			if ($options['countOutput']) {
 				if ($options['groupCount']) {
@@ -189,13 +183,6 @@ class CMediatype extends CApiService {
 				}
 			}
 			else {
-				if ($add_content_type) {
-					$mediatype['content_type'] = $mediatype['message_format'];
-					if ($remove_message_format) {
-						unset($mediatype['message_format']);
-					}
-				}
-
 				$result[$mediatype['mediatypeid']] = $mediatype;
 			}
 		}
@@ -269,11 +256,9 @@ class CMediatype extends CApiService {
 			'smtp_verify_host' =>		['type' => API_INT32],
 			'smtp_authentication' =>	['type' => API_INT32],
 			'provider' =>				['type' => API_INT32, 'in' => implode(',', array_keys(CMediatypeHelper::getEmailProviders()))],
-			'exec_params' =>			['type' => API_STRING_UTF8, 'flags' => API_DEPRECATED],
 			'maxsessions' =>			['type' => API_INT32],
 			'maxattempts' =>			['type' => API_INT32, 'in' => '1:100'],
 			'attempt_interval' =>		['type' => API_TIME_UNIT, 'flags' => API_NOT_EMPTY, 'length' => DB::getFieldLength('media_type', 'attempt_interval'), 'in' => '0:'.SEC_PER_HOUR],
-			'content_type' =>			['type' => API_INT32, 'flags' => API_DEPRECATED, 'replacement' => 'message_format'],
 			'message_format' =>			['type' => API_INT32],
 			'script' =>					['type' => API_STRING_UTF8],
 			'timeout' =>				['type' => API_TIME_UNIT],
@@ -371,11 +356,9 @@ class CMediatype extends CApiService {
 			'smtp_verify_host' =>		['type' => API_INT32],
 			'smtp_authentication' =>	['type' => API_INT32],
 			'provider' =>				['type' => API_INT32, 'in' => implode(',', array_keys(CMediatypeHelper::getEmailProviders()))],
-			'exec_params' =>			['type' => API_STRING_UTF8, 'flags' => API_DEPRECATED],
 			'maxsessions' =>			['type' => API_INT32],
 			'maxattempts' =>			['type' => API_INT32, 'in' => '1:100'],
 			'attempt_interval' =>		['type' => API_TIME_UNIT, 'flags' => API_NOT_EMPTY, 'length' => DB::getFieldLength('media_type', 'attempt_interval'), 'in' => '0:'.SEC_PER_HOUR],
-			'content_type' =>			['type' => API_INT32, 'flags' => API_DEPRECATED, 'replacement' => 'message_format'],
 			'message_format' =>			['type' => API_INT32],
 			'script' =>					['type' => API_STRING_UTF8],
 			'timeout' =>				['type' => API_TIME_UNIT],
@@ -430,7 +413,7 @@ class CMediatype extends CApiService {
 	 *
 	 * @throws APIException if a media type name is not unique.
 	 */
-	private static function checkDuplicates(array $mediatypes, array $db_mediatypes = null): void {
+	private static function checkDuplicates(array $mediatypes, ?array $db_mediatypes = null): void {
 		$names = [];
 
 		foreach ($mediatypes as $mediatype) {
@@ -466,7 +449,7 @@ class CMediatype extends CApiService {
 	 *
 	 * @throws APIException
 	 */
-	private static function validateByType(array &$mediatypes, array $db_mediatypes = null): void {
+	private static function validateByType(array &$mediatypes, ?array $db_mediatypes = null): void {
 		$method = ($db_mediatypes === null) ? 'create' : 'update';
 
 		$db_defaults = DB::getDefaults('media_type');
@@ -479,7 +462,7 @@ class CMediatype extends CApiService {
 					'smtp_verify_host', 'smtp_authentication', 'username', 'passwd', 'message_format', 'provider'
 				],
 				MEDIA_TYPE_EXEC => [
-					'exec_path', 'exec_params', 'parameters'
+					'exec_path', 'parameters'
 				],
 				MEDIA_TYPE_SMS => [
 					'gsm_modem', 'maxsessions'
@@ -506,18 +489,6 @@ class CMediatype extends CApiService {
 
 			if (!CApiInputValidator::validate($api_input_rules, $type_data, '/'.($i + 1), $error)) {
 				self::exception(ZBX_API_ERROR_PARAMETERS, $error);
-			}
-
-			if (array_key_exists('exec_params', $mediatype)) {
-				if ($type == MEDIA_TYPE_EXEC && !array_key_exists('parameters', $mediatype)) {
-					$parameters = explode("\n", trim($mediatype['exec_params']));
-
-					foreach ($parameters as $sortorder => $value) {
-						$mediatype['parameters'][] = ['sortorder' => $sortorder, 'value' => $value];
-					}
-				}
-
-				unset($mediatype['exec_params']);
 			}
 
 			if ($method === 'update') {
@@ -711,7 +682,7 @@ class CMediatype extends CApiService {
 	 * @param string     $method
 	 * @param array|null $db_mediatypes
 	 */
-	private static function updateParameters(array &$mediatypes, string $method, array $db_mediatypes = null): void {
+	private static function updateParameters(array &$mediatypes, string $method, ?array $db_mediatypes = null): void {
 		$ins_params = [];
 		$upd_params = [];
 		$del_paramids = [];
@@ -790,7 +761,8 @@ class CMediatype extends CApiService {
 	 * @param string     $method
 	 * @param array|null $db_mediatypes
 	 */
-	private static function updateMessageTemplates(array &$mediatypes, string $method, array $db_mediatypes = null): void {
+	private static function updateMessageTemplates(array &$mediatypes, string $method,
+			?array $db_mediatypes = null): void {
 		$ins_messages = [];
 		$upd_messages = [];
 		$del_messageids = [];
@@ -882,21 +854,40 @@ class CMediatype extends CApiService {
 
 		$db_mediatypes = DB::select('media_type', [
 			'output' => ['mediatypeid', 'name'],
-			'mediatypeids' => $mediatypeids
+			'mediatypeids' => $mediatypeids,
+			'preservekeys' => true
 		]);
 
 		if (count($db_mediatypes) != count($mediatypeids)) {
 			self::exception(ZBX_API_ERROR_PERMISSIONS, _('No permissions to referred object or it does not exist!'));
 		}
 
-		$actions = API::Action()->get([
-			'output' => ['name'],
+		$db_actions = API::Action()->get([
+			'output' => ['actionid', 'name'],
 			'mediatypeids' => $mediatypeids,
 			'limit' => 1
 		]);
 
-		if ($actions) {
-			self::exception(ZBX_API_ERROR_PARAMETERS, _s('Media types used by action "%1$s".', $actions[0]['name']));
+		if ($db_actions) {
+			$db_action_operations = API::Action()->get([
+				'output' => [],
+				'selectOperations' => ['opmessage'],
+				'selectRecoveryOperations' => ['opmessage'],
+				'selectUpdateOperations' => ['opmessage'],
+				'actionids' => $db_actions[0]['actionid']
+			]);
+
+			foreach (['operations', 'recovery_operations', 'update_operations'] as $operations) {
+				foreach ($db_action_operations[0][$operations] as $operation) {
+					if (array_key_exists('opmessage', $operation)
+							&& array_key_exists($operation['opmessage']['mediatypeid'], $db_mediatypes)) {
+						self::exception(ZBX_API_ERROR_PARAMETERS, _s('Media type "%1$s" is used by action "%2$s".',
+							$db_mediatypes[$operation['opmessage']['mediatypeid']]['name'],
+							$db_actions[0]['name']
+						));
+					}
+				}
+			}
 		}
 
 		DB::delete('media_type', ['mediatypeid' => $mediatypeids]);
@@ -907,16 +898,6 @@ class CMediatype extends CApiService {
 	}
 
 	protected function applyQueryOutputOptions($tableName, $tableAlias, array $options, array $sqlParts): array {
-		if (!$options['countOutput'] && is_array($options['output'])
-				&& ($i = array_search('content_type', $options['output'])) !== false) {
-			if (in_array('message_format', $options['output'])) {
-				unset($options['output'][$i]);
-			}
-			else {
-				$options['output'][$i] = 'message_format';
-			}
-		}
-
 		$sqlParts = parent::applyQueryOutputOptions($tableName, $tableAlias, $options, $sqlParts);
 
 		if (!$options['countOutput'] && $this->outputIsRequested('parameters', $options['output'])) {
@@ -956,36 +937,7 @@ class CMediatype extends CApiService {
 			$result = $relation_map->mapMany($result, $message_templates, 'message_templates');
 		}
 
-		// adding users
-		if ($options['selectUsers'] !== null && $options['selectUsers'] != API_OUTPUT_COUNT) {
-			$user_condition = self::$userData['type'] != USER_TYPE_SUPER_ADMIN
-				? ['userid' => self::$userData['userid']]
-				: [];
-			$_options = [
-				'output' => ['mediatypeid', 'userid'],
-				'filter' => ['mediatypeid' => array_keys($result)] + $user_condition
-			];
-			$medias = DBselect(DB::makeSql('media', $_options));
-
-			$relation_map = new CRelationMap();
-
-			while ($media = DBfetch($medias)) {
-				$relation_map->addRelation($media['mediatypeid'], $media['userid']);
-			}
-
-			$users = [];
-			$related_ids = $relation_map->getRelatedIds();
-
-			if ($related_ids) {
-				$users = API::User()->get([
-					'output' => $options['selectUsers'],
-					'userids' => $related_ids,
-					'preservekeys' => true
-				]);
-			}
-
-			$result = $relation_map->mapMany($result, $users, 'users');
-		}
+		$this->addRelatedUsers($options, $result);
 
 		if ($this->outputIsRequested('parameters', $options['output'])) {
 			foreach ($result as $mediatypeid => $mediatype) {
@@ -1118,5 +1070,39 @@ class CMediatype extends CApiService {
 				$result[$mediatypeid]['actions'][] = $action;
 			}
 		}
+	}
+
+	private function addRelatedUsers(array $options, array &$result): void {
+		if ($options['selectUsers'] === null) {
+			return;
+		}
+
+		if (self::$userData['type'] == USER_TYPE_SUPER_ADMIN) {
+			$relation_map = $this->createRelationMap($result, 'mediatypeid', 'userid', 'media');
+		}
+		else {
+			$_options = [
+				'output' => ['mediatypeid', 'userid'],
+				'filter' => [
+					'mediatypeid' => array_keys($result),
+					'userid' => self::$userData['userid']
+				]
+			];
+			$resource = DBselect(DB::makeSql('media', $_options));
+
+			$relation_map = new CRelationMap();
+
+			while ($media = DBfetch($resource)) {
+				$relation_map->addRelation($media['mediatypeid'], $media['userid']);
+			}
+		}
+
+		$users = API::User()->get([
+			'output' => $options['selectUsers'],
+			'userids' => $relation_map->getRelatedIds(),
+			'preservekeys' => true
+		]);
+
+		$result = $relation_map->mapMany($result, $users, 'users');
 	}
 }

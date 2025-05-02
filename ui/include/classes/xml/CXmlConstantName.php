@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -381,4 +381,18 @@ class CXmlConstantName {
 	const MAPPING_IN_RANGE = 'IN_RANGE';
 	const MAPPING_REGEXP = 'REGEXP';
 	const MAPPING_DEFAULT = 'DEFAULT';
+
+	// Constants for map background scale.
+	public const MAP_BACKGROUND_SCALE_NONE = 'NONE';
+	public const MAP_BACKGROUND_SCALE_COVER = 'PROPORTIONALLY';
+
+	// Constants for map element label appearance.
+	public const SHOW_LABEL_DEFAULT = 'DEFAULT';
+	public const SHOW_LABEL_AUTO_HIDE = 'AUTO_HIDE';
+	public const SHOW_LABEL_ALWAYS = 'ALWAYS';
+
+	// Constants for map link indicators.
+	public const INDICATOR_TYPE_STATIC_LINK = 'STATIC_LINK';
+	public const INDICATOR_TYPE_TRIGGER = 'TRIGGER';
+	public const INDICATOR_TYPE_ITEM_VALUE = 'ITEM_VALUE';
 }

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -41,7 +41,7 @@ const WIDGET_STATE_DESTROYED = 'destroyed';
  * dashboard page and other widgets.
  */
 
-// Widget edit event: informs the dashboard page to enter the editing mode.
+// Widget edit event: informs the dashboard page to enter the dashboard editing mode.
 const WIDGET_EVENT_EDIT = 'widget-edit';
 
 // Widget actions event: informs the dashboard page to display the widget actions popup menu.
@@ -91,6 +91,8 @@ class CWidgetBase {
 
 	#is_awaiting_data = false;
 
+	#has_ever_updated = false;
+
 	/**
 	 * Widget constructor. Invoked by a dashboard page.
 	 *
@@ -129,7 +131,7 @@ class CWidgetBase {
 	 * @param {number}      cell_width          Dashboard page cell width in percentage.
 	 * @param {number}      cell_height         Dashboard page cell height in pixels.
 	 * @param {boolean}     is_editable         Whether to display the "Edit" button.
-	 * @param {boolean}     is_edit_mode        Whether the widget is being created in the editing mode.
+	 * @param {boolean}     is_edit_mode        Whether the widget is being created in the dashboard editing mode.
 	 * @param {string|null} csrf_token          CSRF token for AJAX requests.
 	 * @param {string}      unique_id           Run-time, unique ID of the widget.
 	 */
@@ -197,6 +199,7 @@ class CWidgetBase {
 	#initialize() {
 		this._css_classes = {
 			actions: 'dashboard-grid-widget-actions',
+			controls: 'dashboard-grid-widget-controls',
 			container: 'dashboard-grid-widget-container',
 			contents: 'dashboard-grid-widget-contents',
 			messages: 'dashboard-grid-widget-messages',
@@ -219,7 +222,6 @@ class CWidgetBase {
 		this._is_updating_paused = false;
 		this._update_retry_sec = 3;
 		this._show_preloader_asap = true;
-		this._resizable_handles = [];
 		this._hide_preloader_animation_frame = null;
 
 		this._events = {};
@@ -371,7 +373,7 @@ class CWidgetBase {
 	/**
 	 * Broadcast data to dependent widgets.
 	 *
-	 * @param {Object} data  Object containing key-value pairs, like { _hostid: "123", _itemid: "789" }.
+	 * @param {Object} data  Object containing key-value pairs, like { _hostid: ["123"], _itemid: ["789"] }.
 	 */
 	broadcast(data) {
 		const broadcast_types = this.getBroadcastTypes();
@@ -383,7 +385,7 @@ class CWidgetBase {
 		}
 
 		for (const [type, value] of Object.entries(data)) {
-			ZABBIX.EventHub.publish({
+			ZABBIX.EventHub.publish(new CEventHubEvent({
 				data: value,
 				descriptor: {
 					context: 'dashboard',
@@ -395,7 +397,7 @@ class CWidgetBase {
 					reference: this._fields.reference,
 					type
 				}
-			});
+			}));
 
 			this.#broadcast_cache.set(type, value);
 		}
@@ -456,7 +458,7 @@ class CWidgetBase {
 			const {reference, type} = CWidgetBase.parseTypedReference(accessors.get(path).getTypedReference());
 
 			if (reference !== '') {
-				ZABBIX.EventHub.publish({
+				ZABBIX.EventHub.publish(new CEventHubEvent({
 					data: value,
 					descriptor: {
 						context: 'dashboard',
@@ -468,7 +470,7 @@ class CWidgetBase {
 						reference,
 						type
 					}
-				});
+				}));
 			}
 		}
 	}
@@ -530,7 +532,8 @@ class CWidgetBase {
 					if (this._state === WIDGET_STATE_ACTIVE) {
 						this._startUpdating();
 					}
-				}
+				},
+				accept_cached: true
 			});
 
 			this.#fields_referred_data_subscriptions.push(broadcast_subscription);
@@ -538,40 +541,65 @@ class CWidgetBase {
 
 		const broadcast_types = this.getBroadcastTypes();
 
-		const feedback_subscription = ZABBIX.EventHub.subscribe({
-			require: {
-				context: 'dashboard',
-				event_type: 'feedback',
-				reference: this._fields.reference
-			},
-			callback: ({data, descriptor}) => {
-				if (!('type' in descriptor) || !broadcast_types.includes(descriptor.type)) {
-					return;
-				}
+		if (broadcast_types.length > 0) {
+			for (const require_type of [CEventHubEvent.TYPE_SUBSCRIBE, CEventHubEvent.TYPE_UNSUBSCRIBE]) {
+				const event_subscription = ZABBIX.EventHub.subscribe({
+					require: {
+						context: 'dashboard',
+						event_type: 'broadcast',
+						reference: this._fields.reference
+					},
+					require_type,
+					callback: ({descriptor}) => {
+						if (!('type' in descriptor) || !broadcast_types.includes(descriptor.type)) {
+							return;
+						}
 
-				if (JSON.stringify(this.#broadcast_cache.get(descriptor.type)) !== JSON.stringify(data)) {
-					this.#broadcast_cache.set(descriptor.type, data);
-
-					if (this.onFeedback({type: descriptor.type, value: data})) {
-						ZABBIX.EventHub.publish({
-							data,
-							descriptor: {
-								context: 'dashboard',
-								sender_unique_id: this._unique_id,
-								sender_type: 'widget',
-								widget_type: this._type,
-								event_type: 'broadcast',
-								event_origin: descriptor.event_origin,
-								reference: this._fields.reference,
-								type: descriptor.type
-							}
-						});
+						if (this._state === WIDGET_STATE_ACTIVE) {
+							this.onReferredUpdate();
+						}
 					}
-				}
-			}
-		});
+				});
 
-		this.#fields_referred_data_subscriptions.push(feedback_subscription);
+				this.#fields_referred_data_subscriptions.push(event_subscription);
+			}
+
+			const feedback_subscription = ZABBIX.EventHub.subscribe({
+				require: {
+					context: 'dashboard',
+					event_type: 'feedback',
+					reference: this._fields.reference
+				},
+				callback: ({data, descriptor}) => {
+					if (!('type' in descriptor) || !broadcast_types.includes(descriptor.type)) {
+						return;
+					}
+
+					if (JSON.stringify(this.#broadcast_cache.get(descriptor.type)) !== JSON.stringify(data)) {
+						this.#broadcast_cache.set(descriptor.type, data);
+
+						if (this.onFeedback({type: descriptor.type, value: data})) {
+							ZABBIX.EventHub.publish(new CEventHubEvent({
+								data,
+								descriptor: {
+									context: 'dashboard',
+									sender_unique_id: this._unique_id,
+									sender_type: 'widget',
+									widget_type: this._type,
+									event_type: 'broadcast',
+									event_origin: descriptor.event_origin,
+									reference: this._fields.reference,
+									type: descriptor.type
+								}
+							}));
+						}
+					}
+				},
+				accept_cached: true
+			});
+
+			this.#fields_referred_data_subscriptions.push(feedback_subscription);
+		}
 	}
 
 	/**
@@ -585,9 +613,7 @@ class CWidgetBase {
 			sender_unique_id: this._unique_id
 		});
 
-		for (const subscription of this.#fields_referred_data_subscriptions) {
-			ZABBIX.EventHub.unsubscribe(subscription);
-		}
+		ZABBIX.EventHub.unsubscribeAll(this.#fields_referred_data_subscriptions);
 
 		this.#fields_referred_data.clear();
 		this.#fields_referred_data_updated.clear();
@@ -691,10 +717,41 @@ class CWidgetBase {
 		return fields_data;
 	}
 
+	/**
+	 * Is this widget expected by other widgets to broadcast data of specified type.
+	 *
+	 * @param {string|null} type  Particular data type or null for any data type.
+	 *
+	 * @returns {boolean}
+	 */
+	isReferred(type = null) {
+		if (!('reference' in this._fields)) {
+			return false;
+		}
+
+		const require = {
+			context: 'dashboard',
+			event_type: 'broadcast',
+			reference: this._fields.reference
+		};
+
+		if (type !== null) {
+			require.type = type;
+		}
+
+		return ZABBIX.EventHub.hasSubscribers(require);
+	}
+
+	/**
+	 * Stub method redefined in class.widget.js.
+	 */
+	onReferredUpdate() {
+	}
+
 	// External events management methods.
 
 	/**
-	 * Check whether the widget is in editing mode.
+	 * Check whether the widget is in dashboard editing mode.
 	 *
 	 * @returns {boolean}
 	 */
@@ -703,7 +760,7 @@ class CWidgetBase {
 	}
 
 	/**
-	 * Set widget to editing mode. This is one-way action.
+	 * Set widget to dashboard editing mode. This is one-way action.
 	 */
 	setEditMode() {
 		this._is_edit_mode = true;
@@ -721,6 +778,64 @@ class CWidgetBase {
 	 * Stub method redefined in class.widget.js.
 	 */
 	onEdit() {
+	}
+
+	/**
+	 * Is widget in editing state?
+	 *
+	 * @param {boolean} self  Is this particular widget being edited.
+	 *
+	 * @returns {boolean}
+	 */
+	isWidgetEditing(self = false) {
+		return this._target.classList.contains('is-editing')
+			&& (this._target.classList.contains('is-editing-self') || !self);
+	}
+
+	/**
+	 * Enter widget editing state.
+	 *
+	 * @param {boolean} self          Whether this particular widget is about to be edited.
+	 * @param {boolean} is_exclusive  Whether to prevent switching to editing another widgets.
+	 */
+	enterWidgetEditing(self, {is_exclusive = false} = {}) {
+		this._target.classList.add('is-editing');
+
+		this._button_actions.disabled = true;
+		this._button_edit.disabled = self || is_exclusive;
+
+		if (self && !this._target.classList.contains('is-editing-self')) {
+			this._target.classList.add('is-editing-self');
+
+			for (const direction of ['n', 'e', 's', 'w']) {
+				const highlight = document.createElement('div');
+
+				highlight.classList.add('highlight', `highlight-${direction}`);
+
+				this._target.append(highlight);
+			}
+		}
+		else if (!self) {
+			this._target.classList.remove('is-editing-self');
+
+			for (const highlight of this._target.querySelectorAll('.highlight')) {
+				highlight.remove();
+			}
+		}
+	}
+
+	/**
+	 * Leave widget editing state.
+	 */
+	leaveWidgetEditing() {
+		this._target.classList.remove('is-editing', 'is-editing-self');
+
+		this._button_actions.disabled = false;
+		this._button_edit.disabled = false;
+
+		for (const highlight of this._target.querySelectorAll('.highlight')) {
+			highlight.remove();
+		}
 	}
 
 	/**
@@ -1334,6 +1449,8 @@ class CWidgetBase {
 						}
 					});
 				}
+
+				this.#has_ever_updated = true;
 			})
 			.catch(exception => {
 				if (this._update_abort_controller.signal.aborted) {
@@ -1354,6 +1471,15 @@ class CWidgetBase {
 	 * Stub method redefined in class.widget.js.
 	 */
 	promiseUpdate() {
+	}
+
+	/**
+	 * Check if widget has ever been updated. Returns true if "promiseUpdate" promise has once been resolved.
+	 *
+	 * @returns {boolean}
+	 */
+	hasEverUpdated() {
+		return this.#has_ever_updated;
 	}
 
 	/**
@@ -1418,7 +1544,8 @@ class CWidgetBase {
 	/**
 	 * Calculate which of the four sides are affected by the resize handle.
 	 *
-	 * @param {HTMLElement} resize_handle  One of eight dots by which the widget can be resized in editing mode.
+	 * @param {HTMLElement} resize_handle  One of eight dots by which the widget can be resized in dashboard editing
+	 *                                     mode.
 	 *
 	 * @returns {{top: boolean, left: boolean, bottom: boolean, right: boolean}}
 	 */
@@ -1440,12 +1567,10 @@ class CWidgetBase {
 	}
 
 	/**
-	 * Add eight resize handles to the widget by which the widget can be resized in editing mode. Invoked when the
-	 * widget is entered (focused).
+	 * Add eight resize handles to the widget by which the widget can be resized in dashboard editing mode. Invoked when
+	 * the widget is entered (focused).
 	 */
 	_addResizeHandles() {
-		this._resizable_handles = {};
-
 		for (const direction of ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']) {
 			const resizable_handle = document.createElement('div');
 
@@ -1464,20 +1589,17 @@ class CWidgetBase {
 			}
 
 			this._target.append(resizable_handle);
-			this._resizable_handles[direction] = resizable_handle;
 		}
 	}
 
 	/**
-	 * Remove eight resize handles from the widget by which the widget can be resized in editing mode. Invoked when the
-	 * widget is left (unfocused).
+	 * Remove eight resize handles from the widget by which the widget can be resized in dashboard editing mode. Invoked
+	 * when the widget is left (unfocused).
 	 */
 	_removeResizeHandles() {
-		for (const resizable_handle of Object.values(this._resizable_handles)) {
+		for (const resizable_handle of this._target.querySelectorAll('.ui-resizable-handle')) {
 			resizable_handle.remove();
 		}
-
-		this._resizable_handles = {};
 	}
 
 	/**

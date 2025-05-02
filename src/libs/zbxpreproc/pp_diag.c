@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -28,17 +28,17 @@
  *                                                                            *
  ******************************************************************************/
 static void	diag_add_preproc_sequences(struct zbx_json *json, const char *field,
-		const zbx_vector_pp_sequence_stats_ptr_t *sequences)
+		const zbx_vector_pp_top_stats_ptr_t *stats)
 {
 	int	i;
 
 	zbx_json_addarray(json, field);
 
-	for (i = 0; i < sequences->values_num; i++)
+	for (i = 0; i < stats->values_num; i++)
 	{
 		zbx_json_addobject(json, NULL);
-		zbx_json_adduint64(json, "itemid", sequences->values[i]->itemid);
-		zbx_json_addint64(json, "tasks", sequences->values[i]->tasks_num);
+		zbx_json_adduint64(json, "itemid", stats->values[i]->itemid);
+		zbx_json_addint64(json, "tasks", stats->values[i]->tasks_num);
 		zbx_json_close(json);
 	}
 
@@ -76,11 +76,12 @@ int	zbx_diag_add_preproc_info(const struct zbx_json_parse *jp, struct zbx_json *
 
 		if (0 != (fields & ZBX_DIAG_PREPROC_SIMPLE))
 		{
-			zbx_uint64_t	preproc_num, pending_num, finished_num, sequences_num;
+			zbx_uint64_t	preproc_num, pending_num, finished_num, sequences_num, queued_num, queued_sz,
+					direct_num, direct_sz;
 
 			time1 = zbx_time();
 			if (FAIL == (ret = zbx_preprocessor_get_diag_stats(&preproc_num, &pending_num, &finished_num,
-					&sequences_num, error)))
+					&sequences_num, &queued_num, &queued_sz, &direct_num, &direct_sz, error)))
 			{
 				goto out;
 			}
@@ -94,6 +95,10 @@ int	zbx_diag_add_preproc_info(const struct zbx_json_parse *jp, struct zbx_json *
 				zbx_json_adduint64(json, "pending tasks", pending_num);
 				zbx_json_adduint64(json, "finished tasks", finished_num);
 				zbx_json_adduint64(json, "task sequences", sequences_num);
+				zbx_json_adduint64(json, "queued count", queued_num);
+				zbx_json_adduint64(json, "queued size", queued_sz);
+				zbx_json_adduint64(json, "direct count", direct_num);
+				zbx_json_adduint64(json, "direct size", direct_sz);
 			}
 		}
 
@@ -106,29 +111,15 @@ int	zbx_diag_add_preproc_info(const struct zbx_json_parse *jp, struct zbx_json *
 			for (i = 0; i < tops.values_num; i++)
 			{
 				zbx_diag_map_t	*map = tops.values[i];
+				int (*zbx_get_top_cb)(int limit, zbx_vector_pp_top_stats_ptr_t *stats, char **error);
 
 				if (0 == strcmp(map->name, "sequences"))
 				{
-					zbx_vector_pp_sequence_stats_ptr_t	sequences;
-
-					zbx_vector_pp_sequence_stats_ptr_create(&sequences);
-					time1 = zbx_time();
-
-					if (SUCCEED != (ret = zbx_preprocessor_get_top_sequences((int)map->value,
-							&sequences, error)))
-					{
-						zbx_vector_pp_sequence_stats_ptr_destroy(&sequences);
-						goto out;
-					}
-
-					time2 = zbx_time();
-					time_total += time2 - time1;
-
-					diag_add_preproc_sequences(json, map->name, &sequences);
-
-					zbx_vector_pp_sequence_stats_ptr_clear_ext(&sequences,
-							(zbx_pp_sequence_stats_ptr_free_func_t)(zbx_ptr_free));
-					zbx_vector_pp_sequence_stats_ptr_destroy(&sequences);
+					zbx_get_top_cb = zbx_preprocessor_get_top_sequences;
+				}
+				else if (0 == strcmp(map->name, "peak"))
+				{
+					zbx_get_top_cb = zbx_preprocessor_get_top_peak;
 				}
 				else
 				{
@@ -136,6 +127,26 @@ int	zbx_diag_add_preproc_info(const struct zbx_json_parse *jp, struct zbx_json *
 					ret = FAIL;
 					goto out;
 				}
+
+				zbx_vector_pp_top_stats_ptr_t	stats;
+
+				zbx_vector_pp_top_stats_ptr_create(&stats);
+				time1 = zbx_time();
+
+				if (SUCCEED != (ret = zbx_get_top_cb((int)map->value, &stats, error)))
+				{
+					zbx_vector_pp_top_stats_ptr_destroy(&stats);
+					goto out;
+				}
+
+				time2 = zbx_time();
+				time_total += time2 - time1;
+
+				diag_add_preproc_sequences(json, map->name, &stats);
+
+				zbx_vector_pp_top_stats_ptr_clear_ext(&stats,
+						(zbx_pp_top_stats_ptr_free_func_t)(zbx_ptr_free));
+				zbx_vector_pp_top_stats_ptr_destroy(&stats);
 			}
 
 			zbx_json_close(json);

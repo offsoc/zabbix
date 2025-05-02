@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -35,6 +35,7 @@
 #include "zbxhash.h"
 #include "zbxstr.h"
 #include "zbxinterface.h"
+#include "zbxdbschema.h"
 
 typedef enum
 {
@@ -208,7 +209,7 @@ static void	DBget_profiles_by_source_idxs_values(zbx_vector_uint64_t *profileids
 	char	*sql = NULL;
 	size_t	sql_alloc = 0, sql_offset = 0;
 
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select distinct profileid from profiles where");
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select profileid from profiles where");
 
 	if (NULL != source)
 		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " source='%s' and", source);
@@ -219,13 +220,23 @@ static void	DBget_profiles_by_source_idxs_values(zbx_vector_uint64_t *profileids
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " and");
 	}
 
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "value_id", value_ids->values, value_ids->values_num);
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
-	zbx_db_select_uint64(sql, profileids);
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "value_id", value_ids);
 
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	profileid;
+
+		ZBX_STR2UINT64(profileid, row[0]);
+		zbx_vector_uint64_append(profileids, profileid);
+	}
+	zbx_db_large_query_clear(&query);
 	zbx_free(sql);
 
 	zbx_vector_uint64_sort(profileids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(profileids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 }
 
 /******************************************************************************
@@ -241,8 +252,9 @@ static void	DBget_profiles_by_source_idxs_values(zbx_vector_uint64_t *profileids
 static void	DBget_sysmapelements_by_element_type_ids(zbx_vector_uint64_t *selementids, int elementtype,
 		const zbx_vector_uint64_t *elementids)
 {
-	char	*sql = NULL;
-	size_t	sql_alloc = 0, sql_offset = 0;
+	char		*sql = NULL;
+	size_t		sql_alloc = 0, sql_offset = 0;
+	zbx_db_row_t	row;
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
 			"select distinct selementid"
@@ -251,13 +263,170 @@ static void	DBget_sysmapelements_by_element_type_ids(zbx_vector_uint64_t *seleme
 				" and",
 			elementtype);
 
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "elementid", elementids->values,
-			elementids->values_num);
-	zbx_db_select_uint64(sql, selementids);
+	zbx_db_large_query_t	query;
 
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "elementid", elementids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	elementid;
+
+		ZBX_STR2UINT64(elementid, row[0]);
+		zbx_vector_uint64_append(selementids, elementid);
+	}
+	zbx_db_large_query_clear(&query);
 	zbx_free(sql);
 
 	zbx_vector_uint64_sort(selementids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(selementids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+}
+
+static void	DBget_trigger_map_links(const zbx_vector_uint64_t *triggerids, zbx_vector_uint64_t *linkids)
+{
+	char			*sql = NULL;
+	size_t			sql_alloc = 256, sql_offset = 0;
+	zbx_db_row_t		row;
+	zbx_db_large_query_t	query;
+
+	sql = (char *)zbx_malloc(sql, sql_alloc);
+
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
+			"select distinct linkid from sysmaps_link_triggers where");
+
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "triggerid", triggerids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	linkid;
+
+		ZBX_STR2UINT64(linkid, row[0]);
+		zbx_vector_uint64_append(linkids, linkid);
+	}
+	zbx_db_large_query_clear(&query);
+	zbx_free(sql);
+
+	zbx_vector_uint64_sort(linkids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(linkids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+}
+
+static void	DBupdate_trigger_map_links(const zbx_vector_uint64_t *linkids)
+{
+	char	*sql = NULL;
+	size_t	sql_alloc = 256, sql_offset = 0;
+
+	if (0 == linkids->values_num)
+		return;
+
+	sql = (char *)zbx_malloc(sql, sql_alloc);
+
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "update sysmaps_links sl set indicator_type=0 where "
+			"not exists ("
+			" select null from sysmaps_link_triggers slt where slt.linkid=sl.linkid"
+			") and");
+
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "sl.linkid",
+			linkids->values, linkids->values_num);
+
+	zbx_db_execute("%s", sql);
+	zbx_free(sql);
+}
+
+void	zbx_db_update_item_map_links(const zbx_vector_uint64_t *itemids)
+{
+	char			*sql = NULL;
+	size_t			sql_alloc = 256, sql_offset = 0;
+	zbx_vector_uint64_t	linkids;
+	zbx_db_row_t		row;
+	zbx_db_large_query_t	query;
+
+	if (0 == itemids->values_num)
+		return;
+
+	zbx_vector_uint64_create(&linkids);
+
+	sql = (char *)zbx_malloc(sql, sql_alloc);
+
+	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+			"select distinct linkid"
+			" from sysmaps_links"
+			" where");
+
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "itemid", itemids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	linkid;
+
+		ZBX_STR2UINT64(linkid, row[0]);
+		zbx_vector_uint64_append(&linkids, linkid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	if (0 == linkids.values_num)
+		goto clean;
+
+	zbx_vector_uint64_sort(&linkids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(&linkids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+	sql_offset = 0;
+
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "update sysmaps_links "
+				"set itemid=null,indicator_type=0 where");
+
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "linkid",
+			linkids.values, linkids.values_num);
+
+	zbx_db_execute("%s", sql);
+
+	sql_offset = 0;
+
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from sysmap_link_threshold where");
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "linkid",
+			linkids.values, linkids.values_num);
+
+	zbx_db_execute("%s", sql);
+clean:
+	zbx_free(sql);
+	zbx_vector_uint64_destroy(&linkids);
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Description: gets a vector of sysmap element identifiers used with the     *
+ *              trigger identifiers                                           *
+ *                                                                            *
+ * Parameters: selementids - [OUT] sysmap element identifiers                 *
+ *             triggerids  - [IN]                                             *
+ *                                                                            *
+ ******************************************************************************/
+static void	DBget_sysmapelements_triggers_by_ids(zbx_vector_uint64_t *selementids,
+		const zbx_vector_uint64_t *triggerids)
+{
+	char		*sql = NULL;
+	size_t		sql_alloc = 0, sql_offset = 0;
+	zbx_db_row_t	row;
+
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
+			"select distinct selementid"
+			" from sysmap_element_trigger"
+			" where");
+
+	zbx_db_large_query_t	query;
+
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "triggerid", triggerids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	elementid;
+
+		ZBX_STR2UINT64(elementid, row[0]);
+		zbx_vector_uint64_append(selementids, elementid);
+	}
+	zbx_db_large_query_clear(&query);
+	zbx_free(sql);
+
+	zbx_vector_uint64_sort(selementids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(selementids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 }
 
 /******************************************************************************
@@ -940,66 +1109,22 @@ out:
 	return ret;
 }
 
-/******************************************************************************
- *                                                                            *
- * Purpose: delete action conditions by condition type and id                 *
- *                                                                            *
- ******************************************************************************/
-static void	DBdelete_action_conditions(int conditiontype, zbx_uint64_t elementid)
+static void	DBupdate_action_conditions(int conditiontype, const zbx_vector_uint64_t *elementids)
 {
-	zbx_db_result_t		result;
-	zbx_db_row_t		row;
-	zbx_uint64_t		id;
-	zbx_vector_uint64_t	actionids, conditionids;
-	char			*sql = NULL;
-	size_t			sql_alloc = 0, sql_offset = 0;
+	char	*query;
 
-	zbx_vector_uint64_create(&actionids);
-	zbx_vector_uint64_create(&conditionids);
+	if (0 == elementids->values_num)
+		return;
 
-	/* disable actions */
-	result = zbx_db_select("select actionid,conditionid from conditions where conditiontype=%d and"
-			" value='" ZBX_FS_UI64 "'", conditiontype, elementid);
+	query = zbx_dsprintf(NULL, "update conditions set value='0' where conditiontype=%d and", conditiontype);
 
-	while (NULL != (row = zbx_db_fetch(result)))
+	if (SUCCEED != zbx_db_execute_multiple_query_str(query, "value", elementids))
 	{
-		ZBX_STR2UINT64(id, row[0]);
-		zbx_vector_uint64_append(&actionids, id);
-
-		ZBX_STR2UINT64(id, row[1]);
-		zbx_vector_uint64_append(&conditionids, id);
+		zabbix_log(LOG_LEVEL_WARNING, "failed to update action condition(s) while removing "
+				"groups discovered by LLD");
 	}
 
-	zbx_db_free_result(result);
-
-	if (0 != actionids.values_num)
-	{
-		zbx_vector_uint64_sort(&actionids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-		zbx_vector_uint64_uniq(&actionids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-
-		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, "update actions set status=%d where",
-				ZBX_ACTION_STATUS_DISABLED);
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "actionid", actionids.values,
-				actionids.values_num);
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	}
-
-	if (0 != conditionids.values_num)
-	{
-		zbx_vector_uint64_sort(&conditionids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from conditions where");
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "conditionid", conditionids.values,
-				conditionids.values_num);
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	}
-
-	(void)zbx_db_flush_overflowed_sql(sql, sql_offset);
-
-	zbx_free(sql);
-
-	zbx_vector_uint64_destroy(&conditionids);
-	zbx_vector_uint64_destroy(&actionids);
+	zbx_free(query);
 }
 
 /******************************************************************************
@@ -1053,60 +1178,47 @@ out:
  ******************************************************************************/
 void	zbx_db_delete_triggers(zbx_vector_uint64_t *triggerids, int audit_context_mode)
 {
-	char			*sql = NULL;
-	size_t			sql_alloc = 256, sql_offset;
 	zbx_vector_uint64_t	selementids;
 	const char		*event_tables[] = {"events"};
-
-	ZBX_UNUSED(audit_context_mode);
+	zbx_vector_uint64_t	linkids;
 
 	if (0 == triggerids->values_num)
 		return;
 
-	sql = (char *)zbx_malloc(sql, sql_alloc);
+	zbx_vector_uint64_create(&linkids);
+
+	DBget_trigger_map_links(triggerids, &linkids);
 
 	zbx_vector_uint64_create(&selementids);
+	DBget_sysmapelements_triggers_by_ids(&selementids, triggerids);
 
-	sql_offset = 0;
-	DBget_sysmapelements_by_element_type_ids(&selementids, SYSMAP_ELEMENT_TYPE_TRIGGER, triggerids);
+	zbx_audit_trigger_delete(audit_context_mode, triggerids);
+
+	DBupdate_action_conditions(ZBX_CONDITION_TYPE_TRIGGER, triggerids);
+
+	zbx_db_execute_multiple_query("delete from trigger_tag where", "triggerid", triggerids);
+	zbx_db_execute_multiple_query("delete from functions where", "triggerid", triggerids);
+	zbx_db_execute_multiple_query("delete from triggers where", "triggerid", triggerids);
+
 	if (0 != selementids.values_num)
 	{
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from sysmaps_elements where");
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "selementid", selementids.values,
-				selementids.values_num);
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
+		/* this query to delete map trigger elements must be executed after the query to delete trigger */
+		zbx_db_execute_multiple_query(
+				"delete from sysmaps_elements"
+				" where selementid not in ("
+					"select selementid from sysmap_element_trigger"
+				")"
+					" and",
+				"selementid", &selementids);
 	}
-
-	for (int i = 0; i < triggerids->values_num; i++)
-		DBdelete_action_conditions(ZBX_CONDITION_TYPE_TRIGGER, triggerids->values[i]);
-
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from trigger_tag where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "triggerid", triggerids->values,
-			triggerids->values_num);
-	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
-
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from functions where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "triggerid", triggerids->values,
-			triggerids->values_num);
-	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
-
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
-			"delete from triggers"
-			" where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "triggerid", triggerids->values,
-			triggerids->values_num);
-	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-
-	zbx_db_execute("%s", sql);
 
 	/* add housekeeper task to delete problems associated with trigger, this allows old events to be deleted */
 	DBadd_to_housekeeper(triggerids, "triggerid", event_tables, ARRSIZE(event_tables));
 
-	zbx_vector_uint64_destroy(&selementids);
+	DBupdate_trigger_map_links(&linkids);
 
-	zbx_free(sql);
+	zbx_vector_uint64_destroy(&selementids);
+	zbx_vector_uint64_destroy(&linkids);
 }
 
 /******************************************************************************
@@ -1123,6 +1235,8 @@ static void	DBdelete_trigger_hierarchy(zbx_vector_uint64_t *triggerids, int audi
 	char			*sql = NULL;
 	size_t			sql_alloc = 256, sql_offset = 0;
 	zbx_vector_uint64_t	children_triggerids;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
@@ -1133,12 +1247,22 @@ static void	DBdelete_trigger_hierarchy(zbx_vector_uint64_t *triggerids, int audi
 
 	zbx_vector_uint64_create(&children_triggerids);
 
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select distinct td.triggerid,t.description,t.flags from "
-			"trigger_discovery td, triggers t where td.triggerid=t.triggerid and");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "parent_triggerid", triggerids->values,
-			triggerids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select triggerid from trigger_discovery where");
 
-	zbx_audit_DBselect_delete_for_trigger(audit_context_mode, sql, &children_triggerids);
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "parent_triggerid", triggerids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	triggerid;
+
+		ZBX_STR2UINT64(triggerid, row[0]);
+		zbx_vector_uint64_append(&children_triggerids, triggerid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	zbx_vector_uint64_sort(&children_triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(&children_triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
 	zbx_vector_uint64_setdiff(triggerids, &children_triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
 	zbx_db_delete_triggers(&children_triggerids, audit_context_mode);
@@ -1167,6 +1291,8 @@ static void	DBdelete_triggers_by_itemids(zbx_vector_uint64_t *itemids, int audit
 	char			*sql = NULL;
 	size_t			sql_alloc = 0, sql_offset = 0;
 	zbx_vector_uint64_t	triggerids;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() values_num:%d", __func__, itemids->values_num);
 
@@ -1175,11 +1301,20 @@ static void	DBdelete_triggers_by_itemids(zbx_vector_uint64_t *itemids, int audit
 
 	zbx_vector_uint64_create(&triggerids);
 
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select distinct f.triggerid,t.description,t.flags from "
-			"functions f join triggers t on t.triggerid=f.triggerid where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select triggerid from functions where");
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "itemid", itemids);
 
-	zbx_audit_DBselect_delete_for_trigger(audit_context_mode, sql, &triggerids);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	triggerid;
+
+		ZBX_STR2UINT64(triggerid, row[0]);
+		zbx_vector_uint64_append(&triggerids, triggerid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	zbx_vector_uint64_sort(&triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(&triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
 	DBdelete_trigger_hierarchy(&triggerids, audit_context_mode);
 	zbx_vector_uint64_destroy(&triggerids);
@@ -1199,8 +1334,6 @@ out:
  ******************************************************************************/
 void	zbx_db_delete_graphs(zbx_vector_uint64_t *graphids, int audit_context_mode)
 {
-	char			*sql = NULL;
-	size_t			sql_alloc = 256, sql_offset = 0;
 	zbx_vector_uint64_t	profileids;
 	const char		*profile_idx =  "web.favorite.graphids";
 
@@ -1211,30 +1344,19 @@ void	zbx_db_delete_graphs(zbx_vector_uint64_t *graphids, int audit_context_mode)
 	if (0 == graphids->values_num)
 		goto out;
 
-	sql = (char *)zbx_malloc(sql, sql_alloc);
-
 	zbx_vector_uint64_create(&profileids);
 
 	/* delete from profiles */
 	DBget_profiles_by_source_idxs_values(&profileids, "graphid", &profile_idx, 1, graphids);
 	if (0 != profileids.values_num)
-	{
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from profiles where");
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "profileid", profileids.values,
-				profileids.values_num);
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	}
+		zbx_db_execute_multiple_query("delete from profiles where", "profileid", &profileids);
+
+	zbx_audit_graph_delete(audit_context_mode, graphids);
 
 	/* delete from graphs */
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from graphs where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "graphid", graphids->values, graphids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-
-	zbx_db_execute("%s", sql);
+	zbx_db_execute_multiple_query("delete from graphs where", "graphid", graphids);
 
 	zbx_vector_uint64_destroy(&profileids);
-
-	zbx_free(sql);
 out:
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
@@ -1253,6 +1375,8 @@ static void	DBdelete_graph_hierarchy(zbx_vector_uint64_t *graphids, int audit_co
 	char			*sql = NULL;
 	size_t			sql_alloc = 256, sql_offset = 0;
 	zbx_vector_uint64_t	children_graphids;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
@@ -1263,15 +1387,27 @@ static void	DBdelete_graph_hierarchy(zbx_vector_uint64_t *graphids, int audit_co
 
 	zbx_vector_uint64_create(&children_graphids);
 
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select distinct gd.graphid,g.name,g.flags from"
-			" graph_discovery gd,graphs g where g.graphid=gd.graphid and ");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "parent_graphid", graphids->values,
-			graphids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select graphid from graph_discovery where");
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc,  &sql_offset, "parent_graphid", graphids);
 
-	zbx_audit_DBselect_delete_for_graph(audit_context_mode, sql, &children_graphids);
-	zbx_vector_uint64_setdiff(graphids, &children_graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	graphid;
 
-	zbx_db_delete_graphs(&children_graphids, audit_context_mode);
+		ZBX_STR2UINT64(graphid, row[0]);
+		zbx_vector_uint64_append(&children_graphids, graphid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	if (0 != children_graphids.values_num)
+	{
+		zbx_vector_uint64_sort(&children_graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+		zbx_vector_uint64_uniq(&children_graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+		zbx_vector_uint64_setdiff(graphids, &children_graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+		zbx_db_delete_graphs(&children_graphids, audit_context_mode);
+	}
+
 	zbx_db_delete_graphs(graphids, audit_context_mode);
 
 	zbx_vector_uint64_destroy(&children_graphids);
@@ -1291,12 +1427,12 @@ out:
 static void	DBdelete_graphs_by_itemids(const zbx_vector_uint64_t *itemids, int audit_context_mode)
 {
 	char			*sql = NULL;
-	size_t			sql_alloc = 256, sql_offset;
-	zbx_db_result_t		result;
+	size_t			sql_alloc = 256, sql_offset = 0;
 	zbx_db_row_t		row;
-	zbx_uint64_t		graphid;
 	zbx_vector_uint64_t	graphids;
-	int			index;
+	zbx_db_large_query_t	query;
+	zbx_hashset_t		item_index, graph_index;
+	zbx_hashset_iter_t	iter;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() values_num:%d", __func__, itemids->values_num);
 
@@ -1304,41 +1440,78 @@ static void	DBdelete_graphs_by_itemids(const zbx_vector_uint64_t *itemids, int a
 		goto out;
 
 	sql = (char *)zbx_malloc(sql, sql_alloc);
+	zbx_hashset_create(&graph_index, (size_t)itemids->values_num, ZBX_DEFAULT_UINT64_HASH_FUNC,
+			ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 	zbx_vector_uint64_create(&graphids);
 
 	/* select all graphs with items */
-	sql_offset = 0;
-	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, "select distinct gi.graphid,g.name,g.flags from "
-			"graphs_items gi,graphs g where gi.graphid=g.graphid and ");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "gi.itemid", itemids->values, itemids->values_num);
+	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, "select graphid from graphs_items where");
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "itemid", itemids);
 
-	zbx_audit_DBselect_delete_for_graph(audit_context_mode, sql, &graphids);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	graphid;
+
+		ZBX_STR2UINT64(graphid, row[0]);
+		zbx_hashset_insert(&graph_index, &graphid, sizeof(graphid));
+		zbx_vector_uint64_append(&graphids, graphid);
+	}
+	zbx_db_large_query_clear(&query);
 
 	if (0 == graphids.values_num)
 		goto clean;
 
-	/* select graphs with other items */
+	zbx_vector_uint64_sort(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+	/* filter out graphs with other items */
+
+	zbx_hashset_create(&item_index, (size_t)itemids->values_num, ZBX_DEFAULT_UINT64_HASH_FUNC,
+			ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+	for (int i = 0; i < itemids->values_num; i++)
+		zbx_hashset_insert(&item_index, &itemids->values[i], sizeof(itemids->values[i]));
+
 	sql_offset = 0;
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select distinct graphid"
+			"select distinct graphid,itemid"
 			" from graphs_items"
 			" where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "graphid", graphids.values, graphids.values_num);
-	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and not");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	result = zbx_db_select("%s", sql);
 
-	while (NULL != (row = zbx_db_fetch(result)))
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "graphid", &graphids);
+
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
 	{
-		ZBX_STR2UINT64(graphid, row[0]);
-		if (FAIL != (index = zbx_vector_uint64_bsearch(&graphids, graphid, ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
-			zbx_vector_uint64_remove(&graphids, index);
-	}
-	zbx_db_free_result(result);
+		zbx_uint64_t	graphid, itemid;
 
-	DBdelete_graph_hierarchy(&graphids, audit_context_mode);
+		ZBX_STR2UINT64(itemid, row[1]);
+
+		if (NULL != zbx_hashset_search(&item_index, &itemid))
+			continue;
+
+		ZBX_STR2UINT64(graphid, row[0]);
+		zbx_hashset_remove(&graph_index, &graphid);
+	}
+	zbx_db_large_query_clear(&query);
+	zbx_hashset_destroy(&item_index);
+
+	if (0 != graph_index.num_data)
+	{
+		zbx_uint64_t	*graphid;
+
+		zbx_vector_uint64_clear(&graphids);
+		zbx_hashset_iter_reset(&graph_index, &iter);
+		while (NULL != (graphid = (zbx_uint64_t *)zbx_hashset_iter_next(&iter)))
+			zbx_vector_uint64_append(&graphids, *graphid);
+
+		zbx_vector_uint64_sort(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+		zbx_vector_uint64_uniq(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+		DBdelete_graph_hierarchy(&graphids, audit_context_mode);
+	}
 clean:
 	zbx_vector_uint64_destroy(&graphids);
+	zbx_hashset_destroy(&graph_index);
 	zbx_free(sql);
 out:
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
@@ -1349,51 +1522,33 @@ out:
  * Purpose: gets linked (discovered, dependent, etc) items                    *
  *                                                                            *
  ******************************************************************************/
-static int	db_get_linked_items(zbx_vector_uint64_t *itemids, int audit_context_mode, const char *filter,
-		const char *field)
+static void	db_get_linked_items(zbx_vector_uint64_t *itemids, const char *filter, const char *field)
 {
 	char			*sql = NULL;
-	size_t			sql_alloc = 256, sql_offset = 0, sql_mark = 0;
-	zbx_vector_uint64_t	itemids_tmp, *pitemids = itemids;
-	int			ret;
+	size_t			sql_alloc = 256, sql_offset = 0;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
+	zbx_uint64_t		itemid;
 
 	sql = (char *)zbx_malloc(sql, sql_alloc);
 
-	zbx_vector_uint64_create(&itemids_tmp);
-
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select distinct i.itemid,i.name,i.flags from ");
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select i.itemid from ");
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, filter);
 
-	sql_mark = sql_offset;
-
-	zbx_vector_uint64_sort(itemids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-
-	for (;;)
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, field, itemids);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
 	{
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, field, pitemids->values,
-				pitemids->values_num);
-		zbx_vector_uint64_clear(&itemids_tmp);
+		ZBX_STR2UINT64(itemid, row[0]);
+		zbx_vector_uint64_append(itemids, itemid);
 
-		if (FAIL == (ret = zbx_audit_DBselect_delete_for_item(audit_context_mode, sql, &itemids_tmp)))
-			break;
-
-		if (0 == itemids_tmp.values_num)
-			break;
-
-		sql_offset = sql_mark;
-
-		zbx_vector_uint64_sort(&itemids_tmp, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-		zbx_vector_uint64_uniq(&itemids_tmp, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-		zbx_vector_uint64_append_array(itemids, itemids_tmp.values, itemids_tmp.values_num);
-		pitemids = &itemids_tmp;
 	}
-
-	zbx_vector_uint64_sort(itemids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
-	zbx_vector_uint64_destroy(&itemids_tmp);
-
+	zbx_db_large_query_clear(&query);
 	zbx_free(sql);
 
-	return ret;
+	zbx_vector_uint64_sort(itemids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+	zbx_vector_uint64_uniq(itemids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+	zbx_free(sql);
 }
 
 /******************************************************************************
@@ -1407,12 +1562,10 @@ static int	db_get_linked_items(zbx_vector_uint64_t *itemids, int audit_context_m
  ******************************************************************************/
 void	zbx_db_delete_items(zbx_vector_uint64_t *itemids, int audit_context_mode)
 {
-	char			*sql = NULL;
-	size_t			sql_alloc = 256, sql_offset;
 	zbx_vector_uint64_t	profileids;
 	const char		*event_tables[] = {"events"};
 	const char		*profile_idx = "web.favorite.graphids";
-	unsigned char		history_mode, trends_mode;
+	int			history_mode, trends_mode;
 	zbx_vector_str_t	hk_history;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() values_num:%d", __func__, itemids->values_num);
@@ -1420,16 +1573,13 @@ void	zbx_db_delete_items(zbx_vector_uint64_t *itemids, int audit_context_mode)
 	if (0 == itemids->values_num)
 		goto out;
 
-	if (SUCCEED != db_get_linked_items(itemids, audit_context_mode,
-			"item_discovery id,items i where id.itemid=i.itemid and", "id.parent_itemid"))
-	{
-		goto out;
-	}
+	db_get_linked_items(itemids, "item_discovery i where", "i.parent_itemid");
+	db_get_linked_items(itemids, "items i where", "i.master_itemid");
 
-	if (SUCCEED != db_get_linked_items(itemids, audit_context_mode, "items i where", "i.master_itemid"))
-		goto out;
+	zbx_db_update_item_map_links(itemids);
 
-	sql = (char *)zbx_malloc(sql, sql_alloc);
+	zbx_audit_item_delete(audit_context_mode, itemids);
+
 	zbx_vector_uint64_create(&profileids);
 
 	DBdelete_graphs_by_itemids(itemids, audit_context_mode);
@@ -1464,48 +1614,19 @@ void	zbx_db_delete_items(zbx_vector_uint64_t *itemids, int audit_context_mode)
 	DBadd_to_housekeeper(itemids, "itemid", event_tables, ARRSIZE(event_tables));
 	DBadd_to_housekeeper(itemids, "lldruleid", event_tables, ARRSIZE(event_tables));
 
-	sql_offset = 0;
 	/* delete from profiles */
 	DBget_profiles_by_source_idxs_values(&profileids, "itemid", &profile_idx, 1, itemids);
 	if (0 != profileids.values_num)
-	{
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from profiles where");
-		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "profileid", profileids.values,
-				profileids.values_num);
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	}
+		zbx_db_execute_multiple_query("delete from profiles where", "profileid", &profileids);
 
-	/* delete from item tags */
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from item_tag where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
+	zbx_db_execute_multiple_query("delete from item_tag where", "itemid", itemids);
+	zbx_db_execute_multiple_query("delete from item_preproc where", "itemid", itemids);
+	zbx_db_execute_multiple_query("delete from functions where", "itemid", itemids);
+	zbx_db_execute_multiple_query("update items set master_itemid=null where master_itemid is not null and",
+			"itemid", itemids);
+	zbx_db_execute_multiple_query("delete from items where", "itemid", itemids);
 
-	/* delete from item preprocessing */
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from item_preproc where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
-
-	/* delete from functions */
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from functions where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
-
-	/* delete from items */
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "update items set master_itemid=null where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " and master_itemid is not null;\n");
-
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from items where");
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "itemid", itemids->values, itemids->values_num);
-	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
-
-	zbx_db_execute("%s", sql);
 	zbx_vector_uint64_destroy(&profileids);
-
-	zbx_free(sql);
 out:
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
@@ -1554,8 +1675,7 @@ static void	DBdelete_httptests(const zbx_vector_uint64_t *httptestids, int audit
 	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "httptestid",
 			httptestids->values, httptestids->values_num);
 
-	if (FAIL == zbx_audit_DBselect_delete_for_item(audit_context_mode, sql, &itemids))
-		goto clean;
+	zbx_db_select_uint64(sql, &itemids);
 
 	sql_offset = 0;
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "select httpstepid from httpstep where");
@@ -1598,7 +1718,7 @@ static void	DBdelete_httptests(const zbx_vector_uint64_t *httptestids, int audit
 	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "httptestid",
 			httptestids->values, httptestids->values_num);
 	zbx_db_execute("%s", sql);
-clean:
+
 	zbx_vector_uint64_destroy(&httpstepids);
 	zbx_vector_uint64_destroy(&itemids);
 	zbx_free(sql);
@@ -1790,26 +1910,40 @@ static void	DBdelete_template_graphs(zbx_uint64_t hostid, const zbx_vector_uint6
 	char			*sql = NULL;
 	size_t			sql_alloc = 0, sql_offset = 0;
 	zbx_vector_uint64_t	graphids;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
 	zbx_vector_uint64_create(&graphids);
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select distinct gi.graphid,g.name,g.flags"
-			" from graphs_items gi,items i,items ti, graphs g"
+			"select gi.graphid"
+			" from graphs_items gi,items i,items ti"
 			" where gi.itemid=i.itemid"
 				" and i.templateid=ti.itemid"
-				" and g.graphid=gi.graphid"
 				" and i.hostid=" ZBX_FS_UI64
 				" and",
 			hostid);
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "ti.hostid", templateids->values,
-			templateids->values_num);
 
-	zbx_audit_DBselect_delete_for_graph(audit_context_mode, sql, &graphids);
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "ti.hostid", templateids);
 
-	DBdelete_graph_hierarchy(&graphids, audit_context_mode);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	graphid;
+
+		ZBX_STR2UINT64(graphid, row[0]);
+		zbx_vector_uint64_append(&graphids, graphid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	if (0 != graphids.values_num)
+	{
+		zbx_vector_uint64_sort(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+		zbx_vector_uint64_uniq(&graphids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+		DBdelete_graph_hierarchy(&graphids, audit_context_mode);
+	}
 
 	zbx_vector_uint64_destroy(&graphids);
 	zbx_free(sql);
@@ -1835,26 +1969,41 @@ static void	DBdelete_template_triggers(zbx_uint64_t hostid, const zbx_vector_uin
 	char			*sql = NULL;
 	size_t			sql_alloc = 0, sql_offset = 0;
 	zbx_vector_uint64_t	triggerids;
+	zbx_db_large_query_t	query;
+	zbx_db_row_t		row;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
 	zbx_vector_uint64_create(&triggerids);
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select distinct f.triggerid,t.description,t.flags"
-			" from functions f,items i,items ti,triggers t"
+			"select f.triggerid"
+			" from functions f,items i,items ti"
 			" where f.itemid=i.itemid"
 				" and i.templateid=ti.itemid"
-				" and t.triggerid=f.triggerid"
 				" and i.hostid=" ZBX_FS_UI64
 				" and",
 			hostid);
-	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "ti.hostid", templateids->values,
-			templateids->values_num);
 
-	zbx_audit_DBselect_delete_for_trigger(audit_context_mode, sql, &triggerids);
+	zbx_db_large_query_prepare_uint(&query, &sql, &sql_alloc, &sql_offset, "ti.hostid", templateids);
 
-	DBdelete_trigger_hierarchy(&triggerids, audit_context_mode);
+	while (NULL != (row = zbx_db_large_query_fetch(&query)))
+	{
+		zbx_uint64_t	triggerid;
+
+		ZBX_STR2UINT64(triggerid, row[0]);
+		zbx_vector_uint64_append(&triggerids, triggerid);
+	}
+	zbx_db_large_query_clear(&query);
+
+	if (0 < triggerids.values_num)
+	{
+		zbx_vector_uint64_sort(&triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+		zbx_vector_uint64_uniq(&triggerids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
+
+		DBdelete_trigger_hierarchy(&triggerids, audit_context_mode);
+	}
+
 	zbx_vector_uint64_destroy(&triggerids);
 	zbx_free(sql);
 
@@ -1942,11 +2091,9 @@ static void	DBdelete_template_items(zbx_uint64_t hostid, const zbx_vector_uint64
 	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "ti.hostid", templateids->values,
 			templateids->values_num);
 
-	if (FAIL == zbx_audit_DBselect_delete_for_item(audit_context_mode, sql, &itemids))
-		goto clean;
-
+	zbx_db_select_uint64(sql, &itemids);
 	zbx_db_delete_items(&itemids, audit_context_mode);
-clean:
+
 	zbx_vector_uint64_destroy(&itemids);
 	zbx_free(sql);
 
@@ -2149,6 +2296,7 @@ typedef struct
 	unsigned char	privprotocol;
 	unsigned char	version;
 	unsigned char	bulk;
+	int		max_repetitions;
 }
 zbx_interface_prototype_snmp_t;
 
@@ -2266,29 +2414,6 @@ static void	DBhost_prototypes_clean(zbx_vector_ptr_t *host_prototypes)
 
 	for (i = 0; i < host_prototypes->values_num; i++)
 		DBhost_prototype_clean((zbx_host_prototype_t *)host_prototypes->values[i]);
-}
-
-/******************************************************************************
- *                                                                            *
- * Comments: auxiliary function for DBcopy_template_host_prototypes()         *
- *                                                                            *
- ******************************************************************************/
-static int	DBis_regular_host(zbx_uint64_t hostid)
-{
-	zbx_db_result_t	result;
-	zbx_db_row_t	row;
-	int		ret = FAIL;
-
-	result = zbx_db_select("select flags from hosts where hostid=" ZBX_FS_UI64, hostid);
-
-	if (NULL != (row = zbx_db_fetch(result)))
-	{
-		if (0 == atoi(row[0]))
-			ret = SUCCEED;
-	}
-	zbx_db_free_result(result);
-
-	return ret;
 }
 
 /******************************************************************************
@@ -3224,7 +3349,7 @@ static void	DBhost_prototypes_interfaces_make(zbx_vector_ptr_t *host_prototypes,
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
 			"select hi.hostid,hi.main,hi.type,hi.useip,hi.ip,hi.dns,hi.port,s.version,s.bulk,s.community,"
 				"s.securityname,s.securitylevel,s.authpassphrase,s.privpassphrase,s.authprotocol,"
-				"s.privprotocol,s.contextname"
+				"s.privprotocol,s.contextname,s.max_repetitions"
 			" from interface hi"
 				" left join interface_snmp s"
 					" on hi.interfaceid=s.interfaceid"
@@ -3276,6 +3401,7 @@ static void	DBhost_prototypes_interfaces_make(zbx_vector_ptr_t *host_prototypes,
 			ZBX_STR2UCHAR(snmp->authprotocol, row[14]);
 			ZBX_STR2UCHAR(snmp->privprotocol, row[15]);
 			snmp->contextname = zbx_strdup(NULL, row[16]);
+			snmp->max_repetitions = atoi(row[17]);
 			interface->data.snmp = snmp;
 		}
 		else
@@ -3313,7 +3439,7 @@ static void	DBhost_prototypes_interfaces_make(zbx_vector_ptr_t *host_prototypes,
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
 				"select hi.interfaceid,hi.hostid,hi.main,hi.type,hi.useip,hi.ip,hi.dns,hi.port,"
 					"s.version,s.bulk,s.community,s.securityname,s.securitylevel,s.authpassphrase,"
-					"s.privpassphrase,s.authprotocol,s.privprotocol,s.contextname"
+					"s.privpassphrase,s.authprotocol,s.privprotocol,s.contextname,s.max_repetitions"
 				" from interface hi"
 					" left join interface_snmp s"
 						" on hi.interfaceid=s.interfaceid"
@@ -3361,6 +3487,7 @@ static void	DBhost_prototypes_interfaces_make(zbx_vector_ptr_t *host_prototypes,
 				ZBX_STR2UCHAR(snmp->authprotocol, row[15]);
 				ZBX_STR2UCHAR(snmp->privprotocol, row[16]);
 				snmp->contextname = zbx_strdup(NULL, row[17]);
+				snmp->max_repetitions = atoi(row[18]);
 				interface->data.snmp = snmp;
 			}
 			else
@@ -3637,7 +3764,7 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 	{
 		zbx_db_insert_prepare(&db_insert_snmp, "interface_snmp", "interfaceid", "version", "bulk", "community",
 				"securityname", "securitylevel", "authpassphrase", "privpassphrase", "authprotocol",
-				"privprotocol", "contextname", (char *)NULL);
+				"privprotocol", "contextname", "max_repetitions", (char *)NULL);
 	}
 
 	if (0 != new_inventory_modes)
@@ -3664,6 +3791,9 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 
 			zbx_db_insert_add_values(&db_insert_hdiscovery, host_prototype->hostid, host_prototype->itemid);
 
+			zbx_audit_host_prototype_update_json_add_lldruleid(audit_context_mode,
+					host_prototype->hostid, host_prototype->itemid);
+
 			if (HOST_INVENTORY_DISABLED != host_prototype->inventory_mode)
 			{
 				zbx_db_insert_add_values(&db_insert_inventory_mode, host_prototype->hostid,
@@ -3673,7 +3803,7 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 			zbx_audit_host_prototype_update_json_add_details(audit_context_mode, host_prototype->hostid,
 					host_prototype->templateid, host_prototype->name, (int)host_prototype->status,
 					(int)host_prototype->discover, (int)host_prototype->custom_interfaces,
-					host_prototype->inventory_mode);
+					host_prototype->inventory_mode, host_prototype->host);
 		}
 		else
 		{
@@ -3810,11 +3940,12 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 						hostmacro->macro, hostmacro->value, hostmacro->description,
 						(int)hostmacro->type, (int)hostmacro->automatic);
 
-				zbx_audit_host_prototype_update_json_add_hostmacro(audit_context_mode,
-						host_prototype->hostid, new_hostmacroid, hostmacro->macro,
-						(ZBX_MACRO_VALUE_SECRET == (int)hostmacro->type) ?
-						ZBX_MACRO_SECRET_MASK : hostmacro->value, hostmacro->description,
-						(int)hostmacro->type, (int)hostmacro->automatic);
+				zbx_audit_host_update_json_add_hostmacro(audit_context_mode,
+						host_prototype->hostid, ZBX_AUDIT_RESOURCE_HOST_PROTOTYPE,
+						new_hostmacroid, hostmacro->macro, (ZBX_MACRO_VALUE_SECRET ==
+						(int)hostmacro->type) ? ZBX_MACRO_SECRET_MASK : hostmacro->value,
+						hostmacro->description, (int)hostmacro->type,
+						(int)hostmacro->automatic);
 				new_hostmacroid++;
 			}
 			else if (0 != (hostmacro->flags & ZBX_FLAG_HPMACRO_UPDATE))
@@ -3920,7 +4051,8 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 							interface->data.snmp->privpassphrase,
 							(int)interface->data.snmp->authprotocol,
 							(int)interface->data.snmp->privprotocol,
-							interface->data.snmp->contextname);
+							interface->data.snmp->contextname,
+							interface->data.snmp->max_repetitions);
 
 					zbx_audit_host_prototype_update_json_add_snmp_interface(audit_context_mode,
 							host_prototype->hostid, interface->data.snmp->version,
@@ -3932,6 +4064,7 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
 							interface->data.snmp->authprotocol,
 							interface->data.snmp->privprotocol,
 							interface->data.snmp->contextname,
+							interface->data.snmp->max_repetitions,
 							interface->interfaceid);
 				}
 			}
@@ -4055,16 +4188,12 @@ static void	DBhost_prototypes_save(const zbx_vector_ptr_t *host_prototypes,
  * Comments: auxiliary function for zbx_db_copy_template_elements()           *
  *                                                                            *
  ******************************************************************************/
-static void	DBcopy_template_host_prototypes(zbx_uint64_t hostid, zbx_vector_uint64_t *templateids,
+void	zbx_db_copy_template_host_prototypes(zbx_uint64_t hostid, zbx_vector_uint64_t *templateids,
 		int audit_context_mode, zbx_db_insert_t *db_insert_htemplates)
 {
 	zbx_vector_ptr_t	host_prototypes;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
-
-	/* only regular hosts can have host prototypes */
-	if (SUCCEED != DBis_regular_host(hostid))
-		return;
 
 	zbx_vector_ptr_create(&host_prototypes);
 
@@ -5044,9 +5173,8 @@ static void	DBsave_httptests(zbx_uint64_t hostid, const zbx_vector_ptr_t *httpte
 			zbx_audit_httptest_update_json_add_data(audit_context_mode, httptest->httptestid,
 					httptest->templateid, httptest->name, httptest->delay, (int)httptest->status,
 					httptest->agent, (int)httptest->authentication, httptest->http_user,
-					httptest->http_password, httptest->http_proxy, httptest->retries,
-					httptest->ssl_cert_file, httptest->ssl_key_file, httptest->ssl_key_password,
-					httptest->verify_peer, httptest->verify_host, hostid);
+					httptest->http_proxy, httptest->retries, httptest->ssl_cert_file,
+					httptest->ssl_key_file, httptest->verify_peer, httptest->verify_host, hostid);
 
 			for (j = 0; j < httptest->httpsteps.values_num; j++)
 			{
@@ -5546,7 +5674,7 @@ int	zbx_db_copy_template_elements(zbx_uint64_t hostid, zbx_vector_uint64_t *lnk_
 	}
 
 	DBcopy_template_items(hostid, lnk_templateids, audit_context_mode);
-	DBcopy_template_host_prototypes(hostid, lnk_templateids, audit_context_mode, db_insert_htemplates);
+	zbx_db_copy_template_host_prototypes(hostid, lnk_templateids, audit_context_mode, db_insert_htemplates);
 
 	zbx_db_insert_execute(db_insert_htemplates);
 	zbx_db_insert_clean(db_insert_htemplates);
@@ -5784,7 +5912,7 @@ void	zbx_host_groups_remove(zbx_uint64_t hostid, zbx_vector_uint64_t *hostgroupi
  *             audit_context_mode - [IN]                                      *
  *                                                                            *
  ******************************************************************************/
-void	zbx_db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_str_t *hostnames,
+static void	db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_str_t *hostnames,
 		int audit_context_mode)
 {
 	int			i;
@@ -5825,9 +5953,7 @@ void	zbx_db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_st
 			" where");
 	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "hostid", hostids->values, hostids->values_num);
 
-	if (FAIL == zbx_audit_DBselect_delete_for_item(audit_context_mode, sql, &itemids))
-		goto clean;
-
+	zbx_db_select_uint64(sql, &itemids);
 	zbx_db_delete_items(&itemids, audit_context_mode);
 
 	zbx_vector_uint64_destroy(&itemids);
@@ -5886,8 +6012,13 @@ void	zbx_db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_st
 	}
 
 	/* delete action conditions */
-	for (i = 0; i < hostids->values_num; i++)
-		DBdelete_action_conditions(ZBX_CONDITION_TYPE_HOST, hostids->values[i]);
+	DBupdate_action_conditions(ZBX_CONDITION_TYPE_HOST, hostids);
+
+	/* delete host opcommands */
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from opcommand_hst where");
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "hostid", hostids->values, hostids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
+	zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
 
 	/* delete host tags */
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from host_tag where");
@@ -5919,7 +6050,7 @@ void	zbx_db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_st
 
 	for (i = 0; i < hostids->values_num; i++)
 		zbx_audit_host_del(audit_context_mode, hostids->values[i], hostnames->values[i]);
-clean:
+
 	zbx_free(sql);
 
 	zbx_vector_uint64_destroy(&selementids);
@@ -5939,7 +6070,7 @@ out:
  *             audit_context_mode - [IN]                                      *
  *                                                                            *
  ******************************************************************************/
-void	zbx_db_delete_hosts_with_prototypes(const zbx_vector_uint64_t *hostids, const zbx_vector_str_t *hostnames,
+void	zbx_db_delete_hosts(const zbx_vector_uint64_t *hostids, const zbx_vector_str_t *hostnames,
 		int audit_context_mode)
 {
 	zbx_vector_uint64_t	host_prototype_ids;
@@ -5964,7 +6095,7 @@ void	zbx_db_delete_hosts_with_prototypes(const zbx_vector_uint64_t *hostids, con
 
 	DBdelete_host_prototypes(&host_prototype_ids, &host_prototype_names, audit_context_mode);
 
-	zbx_db_delete_hosts(hostids, hostnames, audit_context_mode);
+	db_delete_hosts(hostids, hostnames, audit_context_mode);
 clean:
 	zbx_free(sql);
 	zbx_vector_uint64_destroy(&host_prototype_ids);
@@ -6153,17 +6284,19 @@ void	zbx_db_add_interface_snmp(const zbx_uint64_t interfaceid, const unsigned ch
 		const unsigned char authprotocol, const unsigned char privprotocol, const char *contextname,
 		const zbx_uint64_t hostid, int audit_context_mode)
 {
-	char		*community_esc, *securityname_esc, *authpassphrase_esc, *privpassphrase_esc, *contextname_esc;
-	unsigned char	db_version, db_bulk, db_securitylevel, db_authprotocol, db_privprotocol;
-	zbx_db_result_t	result;
-	zbx_db_row_t	row;
-	int		break_loop = 0;
+	char			*community_esc, *securityname_esc, *authpassphrase_esc, *privpassphrase_esc,
+				*contextname_esc;
+	unsigned char		db_version, db_bulk, db_securitylevel, db_authprotocol, db_privprotocol;
+	zbx_db_result_t		result;
+	zbx_db_row_t		row;
+	static int		max_repetitions = 0;
+	int			break_loop = 0;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() interfaceid:" ZBX_FS_UI64, __func__, interfaceid);
 
 	result = zbx_db_select(
 			"select version,bulk,community,securityname,securitylevel,authpassphrase,privpassphrase,"
-			"authprotocol,privprotocol,contextname"
+			"authprotocol,privprotocol,contextname,max_repetitions"
 			" from interface_snmp"
 			" where interfaceid=" ZBX_FS_UI64,
 			interfaceid);
@@ -6222,6 +6355,18 @@ void	zbx_db_add_interface_snmp(const zbx_uint64_t interfaceid, const unsigned ch
 	privpassphrase_esc = zbx_db_dyn_escape_field("interface_snmp", "privpassphrase", privpassphrase);
 	contextname_esc = zbx_db_dyn_escape_field("interface_snmp", "contextname", contextname);
 
+	if (0 == max_repetitions)
+	{
+		const zbx_db_table_t	*tbl;
+
+		if (NULL == (tbl = zbx_db_get_table("interface_snmp")))
+		{
+			THIS_SHOULD_NEVER_HAPPEN;
+		}
+
+		max_repetitions = atoi(zbx_db_get_field(tbl, "max_repetitions")->default_value);
+	}
+
 	if (NULL == row)
 	{
 		zbx_db_execute("insert into interface_snmp"
@@ -6234,7 +6379,7 @@ void	zbx_db_add_interface_snmp(const zbx_uint64_t interfaceid, const unsigned ch
 
 		zbx_audit_host_update_json_add_snmp_interface(audit_context_mode, hostid, version, bulk, community_esc,
 				securityname_esc, securitylevel, authpassphrase_esc, privpassphrase_esc, authprotocol,
-				privprotocol, contextname_esc, interfaceid);
+				privprotocol, contextname_esc, max_repetitions, interfaceid);
 	}
 	else
 	{
@@ -6258,7 +6403,8 @@ void	zbx_db_add_interface_snmp(const zbx_uint64_t interfaceid, const unsigned ch
 		zbx_audit_host_update_json_update_snmp_interface(audit_context_mode, hostid, db_version, version,
 				db_bulk, bulk, row[2], community_esc, row[3], securityname_esc, db_securitylevel,
 				securitylevel, row[5], authpassphrase_esc, row[6], privpassphrase_esc, db_authprotocol,
-				authprotocol, db_privprotocol, privprotocol, row[9], contextname_esc, interfaceid);
+				authprotocol, db_privprotocol, privprotocol, row[9], contextname_esc,
+				max_repetitions, max_repetitions, interfaceid);
 	}
 
 	zbx_free(community_esc);
@@ -6287,9 +6433,26 @@ static void	DBdelete_groups_validate(zbx_vector_uint64_t *groupids)
 	zbx_vector_uint64_t	hostids;
 	zbx_uint64_t		groupid;
 	int			index;
+	uint64_t		discovery_groupid;
 
 	if (0 == groupids->values_num)
 		return;
+
+	if (NULL == (result = zbx_db_select("select value_hostgroupid from settings where name='discovery_groupid'")))
+	{
+		THIS_SHOULD_NEVER_HAPPEN;
+		return;
+	}
+
+	if (NULL == (row = zbx_db_fetch(result)))
+	{
+		THIS_SHOULD_NEVER_HAPPEN;
+		zbx_db_free_result(result);
+		return;
+	}
+
+	ZBX_STR2UINT64(discovery_groupid, row[0]);
+	zbx_db_free_result(result);
 
 	zbx_vector_uint64_create(&hostids);
 
@@ -6316,25 +6479,25 @@ static void	DBdelete_groups_validate(zbx_vector_uint64_t *groupids)
 
 	sql_offset = 0;
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
-			"select g.groupid,g.name,c.discovery_groupid"
-			" from hstgrp g,config c"
+			"select g.groupid,g.name"
+			" from hstgrp g"
 			" where");
 	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "g.groupid", groupids->values, groupids->values_num);
 	if (0 < hostids.values_num)
 	{
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
-				" and (g.groupid=c.discovery_groupid"
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+				" and (g.groupid=" ZBX_FS_UI64
 					" or exists ("
 						"select null"
 						" from hosts_groups hg"
 						" where g.groupid=hg.groupid"
-							" and");
+							" and", discovery_groupid);
 		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "hg.hostid", hostids.values,
 				hostids.values_num);
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "))");
 	}
 	else
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " and g.groupid=c.discovery_groupid");
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and g.groupid=" ZBX_FS_UI64, discovery_groupid);
 
 	result = zbx_db_select("%s", sql);
 
@@ -6345,7 +6508,7 @@ static void	DBdelete_groups_validate(zbx_vector_uint64_t *groupids)
 		if (FAIL != (index = zbx_vector_uint64_bsearch(groupids, groupid, ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
 			zbx_vector_uint64_remove(groupids, index);
 
-		if (0 == hostids.values_num || 0 == strcmp(row[0], row[2]))
+		if (0 == hostids.values_num || groupid == discovery_groupid)
 		{
 			zabbix_log(LOG_LEVEL_WARNING, "host group \"%s\" is used for network discovery"
 					" and cannot be deleted", row[1]);
@@ -6358,7 +6521,7 @@ static void	DBdelete_groups_validate(zbx_vector_uint64_t *groupids)
 	}
 	zbx_db_free_result(result);
 
-	/* check if groups is used in the groups prototypes */
+	/* check if groups are used in the groups prototypes */
 
 	if (0 != groupids->values_num)
 	{
@@ -6390,6 +6553,35 @@ static void	DBdelete_groups_validate(zbx_vector_uint64_t *groupids)
 
 			zabbix_log(LOG_LEVEL_WARNING, "host group \"%s\" cannot be deleted,"
 					" because it is used by a host prototype", row[1]);
+		}
+		zbx_db_free_result(result);
+	}
+
+	/* check if groups are used in the event correlation conditions */
+	if (0 != groupids->values_num)
+	{
+		sql_offset = 0;
+		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset,
+				"select distinct(g.groupid),g.name"
+				" from hstgrp g, corr_condition_group c"
+				" where g.groupid=c.groupid and");
+		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "g.groupid",
+				groupids->values, groupids->values_num);
+
+		result = zbx_db_select("%s", sql);
+
+		while (NULL != (row = zbx_db_fetch(result)))
+		{
+			ZBX_STR2UINT64(groupid, row[0]);
+
+			if (FAIL != (index = zbx_vector_uint64_bsearch(groupids, groupid,
+					ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
+			{
+				zbx_vector_uint64_remove(groupids, index);
+			}
+
+			zabbix_log(LOG_LEVEL_WARNING, "host group \"%s\" cannot be deleted,"
+					" because it is used by an event correlation condition", row[1]);
 		}
 		zbx_db_free_result(result);
 	}
@@ -6486,8 +6678,7 @@ void	zbx_db_delete_groups(zbx_vector_uint64_t *groupids)
 	if (0 == groupids->values_num)
 		goto out;
 
-	for (i = 0; i < groupids->values_num; i++)
-		DBdelete_action_conditions(ZBX_CONDITION_TYPE_HOST_GROUP, groupids->values[i]);
+	DBupdate_action_conditions(ZBX_CONDITION_TYPE_HOST_GROUP, groupids);
 
 	zbx_vector_uint64_create(&ids);
 	zbx_vector_uint64_create(&hgsetids);
@@ -6777,6 +6968,17 @@ skip_permissions:
 				ids.values_num);
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
 	}
+
+
+	/* delete opcommands */
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from opcommand_grp where");
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "groupid", groupids->values, groupids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
+
+	/* delete opgroups */
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from opgroup where");
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "groupid", groupids->values, groupids->values_num);
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
 
 	/* delete groups */
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, "delete from hstgrp where");

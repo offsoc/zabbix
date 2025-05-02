@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -31,8 +31,10 @@
 #define ZBX_IPC_PREPROCESSOR_DIAG_STATS			10005
 #define ZBX_IPC_PREPROCESSOR_DIAG_STATS_RESULT		10006
 #define ZBX_IPC_PREPROCESSOR_TOP_SEQUENCES		10007
-#define ZBX_IPC_PREPROCESSOR_TOP_SEQUENCES_RESULT	10008
+#define ZBX_IPC_PREPROCESSOR_TOP_STATS_RESULT		10008
 #define ZBX_IPC_PREPROCESSOR_USAGE_STATS		10009
+#define ZBX_IPC_PREPROCESSOR_TOP_PEAK			10010
+#define ZBX_IPC_PREPROCESSOR_SIZE			10011
 
 /* item value data used in preprocessing manager */
 typedef struct
@@ -71,20 +73,29 @@ void	zbx_preprocessor_unpack_test_result(zbx_vector_pp_result_ptr_t *results, zb
 		const unsigned char *data);
 
 zbx_uint32_t	zbx_preprocessor_pack_diag_stats(unsigned char **data, zbx_uint64_t preproc_num,
-		zbx_uint64_t pending_num, zbx_uint64_t finished_num, zbx_uint64_t sequences_num);
+		zbx_uint64_t pending_num, zbx_uint64_t finished_num, zbx_uint64_t sequences_num,
+		zbx_uint64_t queued_num, zbx_uint64_t queued_sz, zbx_uint64_t direct_num, zbx_uint64_t direct_sz);
+
+zbx_uint32_t	zbx_preprocessor_pack_values_stats(unsigned char **data, zbx_uint64_t queued_num,
+		zbx_uint64_t queued_sz, zbx_uint64_t direct_num, zbx_uint64_t direct_sz, zbx_uint64_t enqueued_num);
 
 void	zbx_preprocessor_unpack_diag_stats(zbx_uint64_t *preproc_num, zbx_uint64_t *pending_num,
-		zbx_uint64_t *finished_num, zbx_uint64_t *sequences_num, const unsigned char *data);
+		zbx_uint64_t *finished_num, zbx_uint64_t *sequences_num, zbx_uint64_t *queued_num,
+		zbx_uint64_t *queued_sz, zbx_uint64_t *direct_num, zbx_uint64_t *direct_sz,
+		const unsigned char *data);
 
-zbx_uint32_t	zbx_preprocessor_pack_top_sequences_request(unsigned char **data, int limit);
+void	zbx_preprocessor_unpack_values_stats(zbx_uint64_t *queued_num, zbx_uint64_t *queued_sz,
+		zbx_uint64_t *direct_num, zbx_uint64_t *direct_sz, zbx_uint64_t *enqueued_num,
+		const unsigned char *data);
+
+zbx_uint32_t	zbx_preprocessor_pack_top_stats_request(unsigned char **data, int limit);
 
 void	zbx_preprocessor_unpack_top_request(int *limit, const unsigned char *data);
 
-zbx_uint32_t	zbx_preprocessor_pack_top_sequences_result(unsigned char **data,
-		zbx_vector_pp_sequence_stats_ptr_t *sequences, int sequences_num);
+zbx_uint32_t	zbx_preprocessor_pack_top_stats_result(unsigned char **data,
+		zbx_vector_pp_top_stats_ptr_t *stats, int stats_num);
 
-void	zbx_preprocessor_unpack_top_sequences_result(zbx_vector_pp_sequence_stats_ptr_t *sequences,
-		const unsigned char *data);
+void	zbx_preprocessor_unpack_top_stats_result(zbx_vector_pp_top_stats_ptr_t *stats, const unsigned char *data);
 
 zbx_uint32_t	zbx_preprocessor_pack_usage_stats(unsigned char **data, const zbx_vector_dbl_t *usage, int count);
 

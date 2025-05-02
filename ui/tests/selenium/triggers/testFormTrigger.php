@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,8 +14,8 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CLegacyWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../../include/CLegacyWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
 
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverKeys;
@@ -1377,7 +1377,9 @@ class testFormTrigger extends CLegacyWebTest {
 
 		// Get the saved trigger's ID from UI.
 		$link = (array_key_exists('form_data', $data)) ? $data['form_data']['Name'] : $data['link_name'];
-		$triggerid = $this->page->query('link', $link)->one()->getAttribute('data-triggerid');
+		$linkElement = $this->page->query('link', $link)->one()->getAttribute('href');
+		parse_str(parse_url($linkElement, PHP_URL_QUERY), $params);
+		$triggerid = $params['triggerid'];
 
 		// Get the newly saved trigger's expression, as it is saved in the DB.
 		$db_expression = CDBHelper::getValue('SELECT expression FROM triggers WHERE triggerid = '.$triggerid);

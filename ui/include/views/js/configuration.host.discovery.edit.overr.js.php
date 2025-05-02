@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -738,7 +738,7 @@
 			})
 			.ready(function() {
 				jQuery('#overrideRow').toggle(jQuery('.form_row', jQuery('#overrides_filters')).length > 1);
-				overlays_stack.end().centerDialog();
+				overlays_stack.end().fixPosition();
 			});
 
 		jQuery('#overrides-evaltype').change(function() {
@@ -750,7 +750,7 @@
 				that.updateExpression();
 			}
 
-			overlays_stack.end().centerDialog();
+			overlays_stack.end().fixPosition();
 		});
 
 		jQuery('#overrides-evaltype').trigger('change');

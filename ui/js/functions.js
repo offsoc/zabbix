@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -438,71 +438,72 @@ function overlayPreloaderDestroy(id) {
 }
 
 /**
- * Function to close overlay dialogue and moves focus to IU element that was clicked to open it.
+ * Close and destroy overlay dialogue and move focus to IU element that was clicked to open it.
  *
- * @param string   dialogueid	Dialogue identifier to identify dialogue.
+ * Closing action by user (not script) can be prevented by preventing default action of the "dialog.close" event.
+ *
+ * @param {string} dialogueid
+ * @param {string} close_by    Indicates the initiator of closing action.
+ *
+ * @returns {boolean}  Whether the dialog was closed (or wasn't opened).
  */
-function overlayDialogueDestroy(dialogueid) {
-	if (typeof dialogueid !== 'undefined') {
-		var overlay = overlays_stack.getById(dialogueid)
-		if (!overlay) {
-			return;
-		}
+function overlayDialogueDestroy(dialogueid, close_by = Overlay.prototype.CLOSE_BY_SCRIPT) {
+	const overlay = overlays_stack.getById(dialogueid);
 
-		if (typeof overlay.xhr !== 'undefined') {
-			overlay.xhr.abort();
-			delete overlay.xhr;
-		}
-
-		if (overlay instanceof Overlay) {
-			overlay.unmount();
-		}
-
-		jQuery('[data-dialogueid='+dialogueid+']').remove();
-
-		removeFromOverlaysStack(dialogueid);
-
-		overlay.$dialogue[0].dispatchEvent(new CustomEvent('dialogue.close', {detail: {dialogueid}}));
+	if (overlay === undefined) {
+		return true;
 	}
+
+	const is_default_prevented = !overlay.$dialogue[0].dispatchEvent(
+		new CustomEvent('dialogue.close', {
+			detail: {
+				dialogueid,
+				position: overlay.getPosition(),
+				position_fix: overlay.getPositionFix(),
+				close_by
+			},
+			cancelable: true
+		})
+	);
+
+	if (close_by === Overlay.prototype.CLOSE_BY_USER && is_default_prevented) {
+		return false;
+	}
+
+	if (overlay.xhr !== undefined) {
+		overlay.xhr.abort();
+
+		delete overlay.xhr;
+	}
+
+	if (overlay instanceof Overlay) {
+		overlay.unmount();
+	}
+
+	jQuery(`[data-dialogueid="${dialogueid}"]`).remove();
+
+	removeFromOverlaysStack(dialogueid);
+
+	return true;
 }
 
 /**
- * Display modal window.
+ * Create and display stacked popup dialogue.
  *
- * @param {object} params                                   Modal window params.
- * @param {string} params.title                             Modal window title.
- * @param {string} params.class                             Modal window CSS class, often based on .modal-popup*.
- * @param {object} params.content                           Window content.
- * @param {object} params.footer                           	Window footer content.
- * @param {object} params.controls                          Window controls.
- * @param {array}  params.buttons                           Window buttons.
- * @param {string} params.debug                             Debug HTML displayed in modal window.
- * @param {string} params.buttons[]['title']                Text on the button.
- * @param {object}|{string} params.buttons[]['action']      Function object or executable string that will be executed
- *                                                          on click.
- * @param {string} params.buttons[]['class']    (optional)  Button class.
- * @param {bool}   params.buttons[]['cancel']   (optional)  It means what this button has cancel action.
- * @param {bool}   params.buttons[]['focused']  (optional)  Focus this button.
- * @param {bool}   params.buttons[]['enabled']  (optional)  Should the button be enabled? Default: true.
- * @param {bool}   params.buttons[]['keepOpen'] (optional)  Prevent dialogue closing, if button action returned false.
- * @param string   params.dialogueid            (optional)  Unique dialogue identifier to reuse existing overlay dialog
- *                                                          or create a new one if value is not set.
- * @param string   params.script_inline         (optional)  Custom javascript code to execute when initializing dialog.
- * @param {Node|null} trigger_elmnt                         UI element which triggered opening of overlay dialogue.
+ * @param {Object} properties  Mutable properties of dialogue.
+ * @param {Object} options     Overlay options.
  *
- * @return {Overlay}
+ * Will reuse existing overlay object, if "options.dialogueid" is specified.
+ *
+ * @see Overlay for supported options.
+ * @see Overlay.prototype.setProperties for supported properties.
+ *
+ * @returns {Overlay}
  */
-function overlayDialogue(params, trigger_elmnt) {
-	params.element = params.element || trigger_elmnt;
-	params.type = params.type || 'popup';
+function overlayDialogue(properties, options = {}) {
+	const overlay = overlays_stack.getById(options.dialogueid) || new Overlay({...options, type: 'popup'});
 
-	var overlay = overlays_stack.getById(params.dialogueid);
-
-	if (!overlay) {
-		overlay = new Overlay(params.type, params.dialogueid);
-	}
-
-	overlay.setProperties(params);
+	overlay.setProperties(properties);
 	overlay.mount();
 	overlay.recoverFocus();
 	overlay.containFocus();
@@ -851,12 +852,23 @@ function urlEncodeData(parameters, prefix = '') {
  *
  * @param {HTMLFormElement} form
  *
- * @return {object}
+ * @return {Object}
  */
 function getFormFields(form) {
+	return searchParamsToObject(new FormData(form));
+}
+
+/**
+ * Convert URL search parameters into nested object.
+ *
+ * @param search_params  An object implementing iterator protocol (URLSearchParams).
+ *
+ * @returns {Object}
+ */
+function searchParamsToObject(search_params) {
 	const fields = {};
 
-	for (let [key, value] of new FormData(form)) {
+	for (let [key, value] of search_params) {
 		value = value.replace(/\r?\n/g, '\r\n');
 
 		const key_parts = [...key.matchAll(/[^\[\]]+|\[\]/g)];
@@ -897,6 +909,35 @@ function getFormFields(form) {
 }
 
 /**
+ * Convert nested data object into URL search parameters object.
+ *
+ * @param {Object|Array} object
+ *
+ * @returns {URLSearchParams}
+ */
+function objectToSearchParams(object) {
+	const combine = (data, search_params = new URLSearchParams(), name_prefix = '') => {
+		if (Array.isArray(data)) {
+			for (const [index, datum] of data.entries()) {
+				combine(datum, search_params, name_prefix !== '' ? `${name_prefix}[${index}]` : index);
+			}
+		}
+		else if (typeof data === 'object') {
+			for (const [name, datum] of Object.entries(data)) {
+				combine(datum, search_params, name_prefix !== '' ? `${name_prefix}[${name}]` : name);
+			}
+		}
+		else {
+			search_params.append(name_prefix, data);
+		}
+
+		return search_params;
+	};
+
+	return combine(object);
+}
+
+/**
  * Convert RGB encoded color into HSL encoded color.
  *
  * @param {number} r  Red component in range of 0-1.
@@ -928,4 +969,11 @@ function convertHSLToRGB(h, s, l) {
 	const f = (n, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
 
 	return [f(0), f(8), f(4)];
+}
+
+/**
+ * Check if given value is valid color hex code.
+ */
+function isColorHex(value) {
+	return /^#([0-9A-F]{6})$/i.test(value);
 }

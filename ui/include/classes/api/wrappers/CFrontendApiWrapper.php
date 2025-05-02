@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -69,42 +69,14 @@ class CFrontendApiWrapper extends CApiWrapper {
 		else {
 			// add an error message
 			$trace = $response->errorMessage;
+
 			if ($response->debug) {
 				$trace .= ' ['.$this->profiler->formatCallStack($response->debug).']';
 			}
-			error($trace);
+
+			error($trace, $response->errorCode == ZBX_API_ERROR_DB);
 
 			return false;
 		}
-	}
-
-	/**
-	 * Call the client method. Pass the "auth" parameter only to the methods that require it.
-	 *
-	 * @param string $method		API method
-	 * @param array  $params		API parameters
-	 *
-	 * @return CApiClientResponse
-	 */
-	protected function callClientMethod($method, $params) {
-		$auth = ($this->requiresAuthentication($this->api, $method))
-			? $this->auth
-			: ['type' => CJsonRpc::AUTH_TYPE_PARAM, 'auth' => null];
-
-		return $this->client->callMethod($this->api, $method, $params, $auth);
-	}
-
-	/**
-	 * Returns true if calling the given method requires an authentication token.
-	 *
-	 * @param $api
-	 * @param $method
-	 *
-	 * @return bool
-	 */
-	protected function requiresAuthentication($api, $method) {
-		return !(($api === 'user' && $method === 'login')
-			|| ($api === 'user' && $method === 'checkAuthentication')
-			|| ($api === 'apiinfo' && $method === 'version'));
 	}
 }

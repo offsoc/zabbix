@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -335,6 +335,24 @@ class testMap extends CAPITest {
 					]
 				],
 				'expected_error' => 'Invalid parameter "/1/shape/1/text": value is too long.'
+			],
+			// Fail. Cannot create map with invalid map element zindex.
+			[
+				'request_data' => [
+					[
+						'name' => 'Map with invalid element z-index',
+						'width' => '800',
+						'height' => '600',
+						'selements' => [
+							[
+								'elementtype' => '4',
+								'iconid_off' => '151',
+								'zindex' => 'a'
+							]
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/selements/1/zindex": an integer is expected.'
 			]
 		];
 	}

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -22,10 +22,10 @@ class CControllerAuditSettingsEdit extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'auditlog_enabled'	=> 'db config.auditlog_enabled',
-			'auditlog_mode'		=> 'db config.auditlog_mode',
-			'hk_audit_mode'		=> 'db config.hk_audit_mode',
-			'hk_audit'			=> 'db config.hk_audit'
+			'auditlog_enabled'	=> 'setting auditlog_enabled',
+			'auditlog_mode'		=> 'setting auditlog_mode',
+			'hk_audit_mode'		=> 'setting hk_audit_mode',
+			'hk_audit'			=> 'setting hk_audit'
 		];
 
 		$ret = $this->validateInput($fields);

@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,7 +14,7 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CLegacyWebTest.php';
+require_once __DIR__.'/../../include/CLegacyWebTest.php';
 
 use Facebook\WebDriver\WebDriverBy;
 
@@ -72,13 +72,10 @@ class testPageHostGraph extends CLegacyWebTest {
 		$this->page->waitUntilReady();
 		$breadcrumbs = [
 			self::HOST_LIST_PAGE => 'All hosts',
-			(new CUrl('zabbix.php'))
-				->setArgument('action', 'host.edit')
-				->setArgument('hostid', $hostid)
-				->getUrl() => $host_name,
+			'zabbix.php?action=popup&popup=host.edit&hostid='.$hostid => $host_name,
 			'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Items',
 			'zabbix.php?action=trigger.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Triggers',
-			'graphs.php?filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Graphs',
+			'zabbix.php?action=graph.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Graphs',
 			'host_discovery.php?filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Discovery rules',
 			'httpconf.php?filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host' => 'Web scenarios'
 		];
@@ -96,7 +93,7 @@ class testPageHostGraph extends CLegacyWebTest {
 		}
 
 		// Check table headers on page.
-		$xpath = '//form[@name="graphForm"]//thead/tr/th[not(@class)]';
+		$xpath = '//form[@name="graph_form"]//thead/tr/th[not(@class)]';
 		$get_headers = $this->query('xpath', $xpath)->all();
 		foreach ($get_headers as $row) {
 			$table_headers[] = $row->getText();
@@ -113,8 +110,8 @@ class testPageHostGraph extends CLegacyWebTest {
 
 			// Check name value.
 			$this->assertEquals($graph['name'],
-					$element->query('xpath:./td/a[@href="graphs.php?form=update&graphid='.
-							$graph['graphid'].'&context=host&filter_hostids%5B0%5D='.$hostid.'"]')->one()->getText()
+					$element->query('xpath:.//a[@href="zabbix.php?action=popup&popup=graph.edit&graphid='.
+					$graph['graphid'].'&context=host"]')->one()->getText()
 			);
 
 			// Check width value.
@@ -745,8 +742,8 @@ class testPageHostGraph extends CLegacyWebTest {
 
 		if (array_key_exists('graph', $data)) {
 			foreach ($data['graph'] as $graph) {
-				$this->assertTrue($this->query('xpath://a[contains(@href,"graphs.php?form=update")][text()="'.$graph.'"]')
-						->one()->isVisible()
+				$this->assertTrue($this->query('xpath://a[contains(@href,"zabbix.php?action=popup&popup=graph.edit")]'.
+						'[text()="'.$graph.'"]')->one()->isVisible()
 				);
 			}
 		}
@@ -758,7 +755,7 @@ class testPageHostGraph extends CLegacyWebTest {
 	private function openPageHostGraphs($host, $context) {
 		$hostid = ($host !== 'all') ? CDBHelper::getValue('SELECT hostid FROM hosts where host='.zbx_dbstr($host)) : 0;
 
-		$this->zbxTestLogin('graphs.php?filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context='.$context);
+		$this->zbxTestLogin('zabbix.php?action=graph.list&filter_hostids%5B%5D='.$hostid.'&filter_set=1&context='.$context);
 
 		return $hostid;
 	}

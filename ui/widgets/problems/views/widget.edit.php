@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -86,7 +86,7 @@ $form
 		new CWidgetFieldIntegerBoxView($data['fields']['show_lines'])
 	)
 	->includeJsFile('widget.edit.js.php')
-	->addJavaScript('widget_problems_form.init('.json_encode([
+	->initFormJs('widget_form.init('.json_encode([
 		'sort_with_enabled_show_timeline' => [
 			SCREEN_SORT_TRIGGERS_TIME_DESC => true,
 			SCREEN_SORT_TRIGGERS_TIME_ASC => true

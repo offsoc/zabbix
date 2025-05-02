@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -263,7 +263,7 @@ func setHostname() error {
 
 	var m *scheduler.Manager
 	var err error
-	if m, err = scheduler.NewManager(&agent.Options); err != nil {
+	if m, err = scheduler.NewManager(&agent.Options, make(agent.PluginSystemOptions)); err != nil {
 		return fmt.Errorf("cannot create scheduling manager: %s", err)
 	}
 	m.Start()

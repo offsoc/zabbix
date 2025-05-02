@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,10 +14,10 @@
 **/
 
 
-require_once dirname(__FILE__).'/../common/testFormAdministrationGeneral.php';
+require_once __DIR__.'/../common/testFormAdministrationGeneral.php';
 
 /**
- * @backup config
+ * @backup settings
  */
 class testFormAdministrationGeneralTimeouts extends testFormAdministrationGeneral {
 
@@ -798,12 +798,12 @@ class testFormAdministrationGeneralTimeouts extends testFormAdministrationGenera
 						'Incorrect value for field "timeout_telnet_agent": cannot be empty.',
 						'Incorrect value for field "timeout_script": cannot be empty.',
 						'Incorrect value for field "timeout_browser": cannot be empty.',
-						'Incorrect value for field "socket_timeout": cannot be empty.',
-						'Incorrect value for field "connect_timeout": cannot be empty.',
-						'Incorrect value for field "media_type_test_timeout": cannot be empty.',
-						'Incorrect value for field "script_timeout": cannot be empty.',
-						'Incorrect value for field "item_test_timeout": cannot be empty.',
-						'Incorrect value for field "report_test_timeout": cannot be empty.'
+						'Incorrect value for field "socket_timeout": a time unit is expected.',
+						'Incorrect value for field "connect_timeout": a time unit is expected.',
+						'Incorrect value for field "media_type_test_timeout": a time unit is expected.',
+						'Incorrect value for field "media_type_test_timeout": a time unit is expected.',
+						'Incorrect value for field "item_test_timeout": a time unit is expected.',
+						'Incorrect value for field "report_test_timeout": a time unit is expected.'
 					]
 				]
 			],

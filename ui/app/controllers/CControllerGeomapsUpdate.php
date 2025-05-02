@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -21,10 +21,10 @@ class CControllerGeomapsUpdate extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'geomaps_tile_provider'		=> 'required|db config.geomaps_tile_provider',
-			'geomaps_tile_url'			=> 'required|not_empty|db config.geomaps_tile_url',
-			'geomaps_max_zoom'			=> 'required|not_empty|db config.geomaps_max_zoom|ge 1|le '.ZBX_GEOMAP_MAX_ZOOM,
-			'geomaps_attribution'		=> 'db config.geomaps_attribution'
+			'geomaps_tile_provider'		=> 'required|setting geomaps_tile_provider',
+			'geomaps_tile_url'			=> 'required|not_empty|setting geomaps_tile_url',
+			'geomaps_max_zoom'			=> 'required|ge 1|le '.ZBX_GEOMAP_MAX_ZOOM,
+			'geomaps_attribution'		=> 'setting geomaps_attribution'
 		];
 
 		$ret = $this->validateInput($fields);
@@ -33,11 +33,8 @@ class CControllerGeomapsUpdate extends CController {
 			switch ($this->GetValidationError()) {
 				case self::VALIDATION_ERROR:
 					$response = new CControllerResponseRedirect(
-						(new CUrl('zabbix.php'))
-							->setArgument('action', 'geomaps.edit')
-							->getUrl()
+						(new CUrl('zabbix.php'))->setArgument('action', 'geomaps.edit')
 					);
-
 					$response->setFormData($this->getInputAll());
 					CMessageHelper::setErrorTitle(_('Cannot update configuration'));
 					$this->setResponse($response);
@@ -67,9 +64,7 @@ class CControllerGeomapsUpdate extends CController {
 		$result = API::Settings()->update($settings);
 
 		$response = new CControllerResponseRedirect(
-			(new CUrl('zabbix.php'))
-				->setArgument('action', 'geomaps.edit')
-				->getUrl()
+			(new CUrl('zabbix.php'))->setArgument('action', 'geomaps.edit')
 		);
 
 		if ($result) {

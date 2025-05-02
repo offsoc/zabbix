@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -28,7 +28,7 @@ class CControllerTriggerEdit extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'context' =>				'in '.implode(',', ['host', 'template']),
+			'context' =>				'required|in '.implode(',', ['host', 'template']),
 			'correlation_mode' =>		'db triggers.correlation_mode|in '.implode(',', [ZBX_TRIGGER_CORRELATION_NONE, ZBX_TRIGGER_CORRELATION_TAG]),
 			'correlation_tag' =>		'db triggers.correlation_tag',
 			'dependencies' =>			'array',
@@ -68,6 +68,25 @@ class CControllerTriggerEdit extends CController {
 	}
 
 	protected function checkPermissions(): bool {
+		if ($this->hasInput('hostid')) {
+			if ($this->getInput('context') === 'host') {
+				$exists = (bool) API::Host()->get([
+					'output' => [],
+					'hostids' => $this->getInput('hostid')
+				]);
+			}
+			else {
+				$exists = (bool) API::Template()->get([
+					'output' => [],
+					'templateids' => $this->getInput('hostid')
+				]);
+			}
+
+			if (!$exists) {
+				return false;
+			}
+		}
+
 		if ($this->hasInput('triggerid')) {
 			$parameters = [
 				'output' => ['triggerid', 'expression', 'description', 'url', 'status', 'priority', 'comments',
@@ -79,7 +98,8 @@ class CControllerTriggerEdit extends CController {
 				'selectDiscoveryRule' => ['itemid', 'name', 'templateid'],
 				'selectTriggerDiscovery' => ['parent_triggerid', 'disable_source'],
 				'selectDependencies' => ['triggerid'],
-				'selectTags' => ['tag', 'value']
+				'selectTags' => ['tag', 'value'],
+				'editable' => true
 			];
 
 			if ($this->hasInput('show_inherited_tags') && $this->getInput('show_inherited_tags')) {

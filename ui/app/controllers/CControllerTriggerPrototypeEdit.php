@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -25,12 +25,11 @@ class CControllerTriggerPrototypeEdit extends CController {
 
 	protected function init(): void {
 		$this->disableCsrfValidation();
-		$this->setPostContentType(self::POST_CONTENT_TYPE_JSON);
 	}
 
 	protected function checkInput(): bool {
 		$fields = [
-			'context' =>				'in '.implode(',', ['host', 'template']),
+			'context' =>				'required|in '.implode(',', ['host', 'template']),
 			'hostid' =>					'db hosts.hostid',
 			'triggerid' =>				'db triggers.triggerid',
 			'name' =>					'string',
@@ -82,6 +81,25 @@ class CControllerTriggerPrototypeEdit extends CController {
 			return false;
 		}
 
+		if ($this->hasInput('hostid')) {
+			if ($this->getInput('context') === 'host') {
+				$exists = (bool) API::Host()->get([
+					'output' => [],
+					'hostids' => $this->getInput('hostid')
+				]);
+			}
+			else {
+				$exists = (bool) API::Template()->get([
+					'output' => [],
+					'templateids' => $this->getInput('hostid')
+				]);
+			}
+
+			if (!$exists) {
+				return false;
+			}
+		}
+
 		if ($this->hasInput('triggerid')) {
 			$trigger_prototypes = API::TriggerPrototype()->get([
 				'output' => ['triggerid', 'expression', 'description', 'url', 'status', 'priority', 'comments',
@@ -89,6 +107,7 @@ class CControllerTriggerPrototypeEdit extends CController {
 					'correlation_tag', 'manual_close', 'opdata', 'event_name', 'url_name', 'discover'
 				],
 				'selectHosts' => ['hostid'],
+				'selectDiscoveryRule' => ['itemid', 'templateid'],
 				'triggerids' => $this->getInput('triggerid'),
 				'selectItems' => ['itemid', 'templateid', 'flags'],
 				'selectDependencies' => ['triggerid'],
@@ -154,7 +173,7 @@ class CControllerTriggerPrototypeEdit extends CController {
 				}
 
 				if (($data['show_inherited_tags'] == 0 || !$this->trigger_prototype)
-					&& (array_key_exists('type', $tag) && !($tag['type'] & ZBX_PROPERTY_OWN))) {
+						&& (array_key_exists('type', $tag) && !($tag['type'] & ZBX_PROPERTY_OWN))) {
 					continue;
 				}
 

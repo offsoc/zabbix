@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -19,7 +19,7 @@ require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
  * Test suite to check if trigger state is updated properly
  * when item state toggles between normal and unsupported
  *
- * @backup hosts, host_rtdata, proxy, proxy_rtdata, auditlog, changelog, config, ha_node, expressions, globalmacro
+ * @backup hosts, host_rtdata, proxy, proxy_rtdata, auditlog, changelog, settings, ha_node, expressions, globalmacro
  * @backup interface, item_rtdata, items, regexps, task, task_data
  * @hosts test
  */

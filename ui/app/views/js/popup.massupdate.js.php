@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -412,18 +412,19 @@ function submitPopup(overlay) {
 
 	if (warning_message !== '') {
 		overlayDialogue({
-			'title': <?= json_encode(_('Warning')) ?>,
-			'type': 'popup',
-			'class': 'position-middle',
-			'content': $('<span>').text(warning_message),
-			'buttons': [
+			title: <?= json_encode(_('Warning')) ?>,
+			content: $('<span>').text(warning_message),
+			buttons: [
 				{
-					'title': <?= json_encode(_('Ok')) ?>,
-					'focused': true,
-					'action': () => {}
+					title: <?= json_encode(_('Ok')) ?>,
+					focused: true,
+					action: () => {}
 				}
 			]
-		}, overlay.$btn_submit);
+		}, {
+			position: Overlay.prototype.POSITION_CENTER,
+			trigger_element: overlay.$btn_submit
+		});
 
 		overlay.unsetLoading();
 		return false;

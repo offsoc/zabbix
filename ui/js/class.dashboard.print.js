@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -44,7 +44,6 @@ class CDashboardPrint extends CDashboard {
 			cell_height: this._cell_height,
 			max_columns: this._max_columns,
 			max_rows: this._max_rows,
-			widget_defaults: this._widget_defaults,
 			is_editable: this._is_editable,
 			is_edit_mode: this._is_edit_mode,
 			csrf_token: this._csrf_token,

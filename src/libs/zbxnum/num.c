@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -37,7 +37,7 @@ int	zbx_is_uint_n_range(const char *str, size_t n, void *value, size_t size, zbx
 	zbx_uint64_t		value_uint64 = 0, c;
 	const zbx_uint64_t	max_uint64 = ~__UINT64_C(0);
 
-	if ('\0' == *str || 0 == n || sizeof(zbx_uint64_t) < size || (0 == size && NULL != value))
+	if (NULL == str || '\0' == *str || 0 == n || sizeof(zbx_uint64_t) < size || (0 == size && NULL != value))
 		return FAIL;
 
 	while ('\0' != *str && 0 < n--)

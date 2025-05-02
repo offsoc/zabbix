@@ -9,7 +9,7 @@ The template for monitoring Ethernet router MikroTik CCR1036-8G-2S+EM.
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -18,7 +18,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -68,8 +68,6 @@ Refer to the vendor documentation.
 |----|-----------|----|-----------------------|
 |SNMP walk wireless interfaces||SNMP agent|net.if.wireless.walk|
 |SNMP walk system CPUs|<p>MIB: HOST-RESOURCES-MIB</p><p>Discovering system CPUs.</p>|SNMP agent|system.cpu.walk|
-|SNMP walk CPU temperature sensors|<p>MIB: MIKROTIK-MIB</p><p>Discovering CPU temperature sensors.</p>|SNMP agent|sensor.cpu.temp.walk|
-|SNMP walk temperature sensors|<p>MIB: MIKROTIK-MIB</p><p>Discovering temperature sensors.</p>|SNMP agent|sensor.temp.walk|
 |SNMP walk mounted filesystems|<p>MIB: HOST-RESOURCES-MIB</p><p>Discovering mounted filesystems.</p>|SNMP agent|vfs.fs.walk|
 |Used memory|<p>MIB: HOST-RESOURCES-MIB</p><p>The amount of the storage represented by this entry that is allocated, in units of hrStorageAllocationUnits.</p>|SNMP agent|vm.memory.used[hrStorageUsed.Memory]<p>**Preprocessing**</p><ul><li><p>Custom multiplier: `1024`</p></li></ul>|
 |Total memory|<p>MIB: HOST-RESOURCES-MIB</p><p>The size of the storage represented by this entry, in</p><p>units of hrStorageAllocationUnits. This object is</p><p>writable to allow remote configuration of the size of</p><p>the storage area in those cases where such an</p><p>operation makes sense and is possible on the</p><p>underlying system. For example, the amount of main</p><p>memory allocated to a buffer pool might be modified or</p><p>the amount of disk space allocated to virtual memory</p><p>might be modified.</p>|SNMP agent|vm.memory.total[hrStorageSize.Memory]<p>**Preprocessing**</p><ul><li><p>Custom multiplier: `1024`</p></li></ul>|
@@ -96,16 +94,16 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|High memory utilization|<p>The system is running out of free memory.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/vm.memory.util[memoryUsedPercentage.Memory],5m)>{$MEMORY.UTIL.MAX}`|Average||
-|Operating system description has changed|<p>The description of the operating system has changed. Possible reasons are that the system has been updated or replaced. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0],#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0],#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0]))>0`|Info|**Manual close**: Yes<br>**Depends on**:<br><ul><li>System name has changed</li></ul>|
-|Device has been replaced|<p>Device serial number has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber))>0`|Info|**Manual close**: Yes|
-|Firmware has changed|<p>Firmware version has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware))>0`|Info|**Manual close**: Yes|
-|Host has been restarted|<p>Uptime is less than 10 minutes.</p>|`(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])>0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])<10m) or (last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])=0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/system.net.uptime[sysUpTime.0])<10m)`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>No SNMP data collection</li></ul>|
-|System name has changed|<p>The name of the system has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name))>0`|Info|**Manual close**: Yes|
-|No SNMP data collection|<p>SNMP is not available for polling. Please check device connectivity and SNMP settings.</p>|`max(/MikroTik CCR1036-8G-2SEM by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0`|Warning|**Depends on**:<br><ul><li>Unavailable by ICMP ping</li></ul>|
-|Unavailable by ICMP ping|<p>Last three attempts returned timeout.  Please check device connectivity.</p>|`max(/MikroTik CCR1036-8G-2SEM by SNMP/icmpping,#3)=0`|High||
-|High ICMP ping loss||`min(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingloss,5m)<100`|Warning|**Depends on**:<br><ul><li>Unavailable by ICMP ping</li></ul>|
-|High ICMP ping response time|<p>Average ICMP response time is too high.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingsec,5m)>{$ICMP_RESPONSE_TIME_WARN}`|Warning|**Depends on**:<br><ul><li>High ICMP ping loss</li><li>Unavailable by ICMP ping</li></ul>|
+|MikroTik: High memory utilization|<p>The system is running out of free memory.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/vm.memory.util[memoryUsedPercentage.Memory],5m)>{$MEMORY.UTIL.MAX}`|Average||
+|MikroTik: Operating system description has changed|<p>The description of the operating system has changed. Possible reasons are that the system has been updated or replaced. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0],#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0],#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.sw.os[mtxrLicVersion.0]))>0`|Info|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: System name has changed</li></ul>|
+|MikroTik: Device has been replaced|<p>Device serial number has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.serialnumber))>0`|Info|**Manual close**: Yes|
+|MikroTik: Firmware has changed|<p>Firmware version has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.firmware))>0`|Info|**Manual close**: Yes|
+|MikroTik: Host has been restarted|<p>Uptime is less than 10 minutes.</p>|`(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])>0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])<10m) or (last(/MikroTik CCR1036-8G-2SEM by SNMP/system.hw.uptime[hrSystemUptime.0])=0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/system.net.uptime[sysUpTime.0])<10m)`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: No SNMP data collection</li></ul>|
+|MikroTik: System name has changed|<p>The name of the system has changed. Acknowledge to close the problem manually.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name,#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name,#2) and length(last(/MikroTik CCR1036-8G-2SEM by SNMP/system.name))>0`|Info|**Manual close**: Yes|
+|MikroTik: No SNMP data collection|<p>SNMP is not available for polling. Please check device connectivity and SNMP settings.</p>|`max(/MikroTik CCR1036-8G-2SEM by SNMP/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0`|Warning|**Depends on**:<br><ul><li>MikroTik: Unavailable by ICMP ping</li></ul>|
+|MikroTik: Unavailable by ICMP ping|<p>Last three attempts returned timeout.  Please check device connectivity.</p>|`max(/MikroTik CCR1036-8G-2SEM by SNMP/icmpping,#3)=0`|High||
+|MikroTik: High ICMP ping loss||`min(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingloss,5m)<100`|Warning|**Depends on**:<br><ul><li>MikroTik: Unavailable by ICMP ping</li></ul>|
+|MikroTik: High ICMP ping response time|<p>Average ICMP response time is too high.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/icmppingsec,5m)>{$ICMP_RESPONSE_TIME_WARN}`|Warning|**Depends on**:<br><ul><li>MikroTik: High ICMP ping loss</li><li>MikroTik: Unavailable by ICMP ping</li></ul>|
 
 ### LLD rule CPU discovery
 
@@ -123,47 +121,47 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|#{#SNMPINDEX}: High CPU utilization|<p>CPU utilization is too high. The system might be slow to respond.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/system.cpu.util[hrProcessorLoad.{#SNMPINDEX}],5m)>{$CPU.UTIL.CRIT}`|Warning||
+|MikroTik: #{#SNMPINDEX}: High CPU utilization|<p>CPU utilization is too high. The system might be slow to respond.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/system.cpu.util[hrProcessorLoad.{#SNMPINDEX}],5m)>{$CPU.UTIL.CRIT}`|Warning||
 
 ### LLD rule Temperature CPU discovery
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Temperature CPU discovery|<p>MIKROTIK-MIB::mtxrHlProcessorTemperature</p><p>Since temperature of CPU is not available on all Mikrotik hardware, this is done to avoid unsupported items.</p>|Dependent item|mtxrHlProcessorTemperature.discovery<p>**Preprocessing**</p><ul><li><p>SNMP walk to JSON</p><p>⛔️Custom on fail: Discard value</p></li><li><p>Discard unchanged with heartbeat: `1h`</p></li></ul>|
+|Temperature CPU discovery|<p>MIKROTIK-MIB::mtxrHlProcessorTemperature</p><p>Since temperature of CPU is not available on all Mikrotik hardware, this is done to avoid unsupported items.</p>|SNMP agent|mtxrHlProcessorTemperature.discovery<p>**Preprocessing**</p><ul><li><p>SNMP walk to JSON</p><p>⛔️Custom on fail: Discard value</p></li></ul>|
 
 ### Item prototypes for Temperature CPU discovery
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|CPU: Temperature|<p>MIB: MIKROTIK-MIB</p><p>mtxrHlProcessorTemperature Processor temperature in Celsius (degrees C).</p><p>Might be missing in entry models (RB750, RB450G..).</p>|Dependent item|sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}]<p>**Preprocessing**</p><ul><li><p>SNMP walk value: `1.3.6.1.4.1.14988.1.1.3.11.{#SNMPINDEX}`</p></li><li><p>Custom multiplier: `0.1`</p></li><li><p>Discard unchanged with heartbeat: `3m`</p></li></ul>|
+|CPU: Temperature|<p>MIB: MIKROTIK-MIB</p><p>mtxrHlProcessorTemperature Processor temperature in Celsius (degrees C).</p><p>Might be missing in entry models (RB750, RB450G..).</p>|SNMP agent|sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}]<p>**Preprocessing**</p><ul><li><p>Custom multiplier: `0.1`</p></li><li><p>Discard unchanged with heartbeat: `3m`</p></li></ul>|
 
 ### Trigger prototypes for Temperature CPU discovery
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|CPU: Temperature is above warning threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)>{$TEMP_WARN:"CPU"}`|Warning|**Depends on**:<br><ul><li>CPU: Temperature is above critical threshold</li></ul>|
-|CPU: Temperature is above critical threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)>{$TEMP_CRIT:"CPU"}`|High||
-|CPU: Temperature is too low||`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)<{$TEMP_CRIT_LOW:"CPU"}`|Average||
+|MikroTik: CPU: Temperature is above warning threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)>{$TEMP_WARN:"CPU"}`|Warning|**Depends on**:<br><ul><li>MikroTik: CPU: Temperature is above critical threshold</li></ul>|
+|MikroTik: CPU: Temperature is above critical threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)>{$TEMP_CRIT:"CPU"}`|High||
+|MikroTik: CPU: Temperature is too low||`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlProcessorTemperature.{#SNMPINDEX}],5m)<{$TEMP_CRIT_LOW:"CPU"}`|Average||
 
 ### LLD rule Temperature sensor discovery
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Temperature sensor discovery|<p>MIKROTIK-MIB::mtxrHlTemperature</p><p>Since temperature sensor is not available on all Mikrotik hardware, this is done to avoid unsupported items.</p>|Dependent item|mtxrHlTemperature.discovery<p>**Preprocessing**</p><ul><li><p>SNMP walk to JSON</p><p>⛔️Custom on fail: Discard value</p></li><li><p>Discard unchanged with heartbeat: `1h`</p></li></ul>|
+|Temperature sensor discovery|<p>MIKROTIK-MIB::mtxrHlTemperature</p><p>Since temperature sensor is not available on all Mikrotik hardware, this is done to avoid unsupported items.</p>|SNMP agent|mtxrHlTemperature.discovery<p>**Preprocessing**</p><ul><li><p>SNMP walk to JSON</p><p>⛔️Custom on fail: Discard value</p></li></ul>|
 
 ### Item prototypes for Temperature sensor discovery
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Device: Temperature|<p>MIB: MIKROTIK-MIB</p><p>mtxrHlTemperature Device temperature in Celsius (degrees C).</p><p>Might be missing in entry models (RB750, RB450G..).</p><p></p><p>Reference: http://wiki.mikrotik.com/wiki/Manual:SNMP</p>|Dependent item|sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}]<p>**Preprocessing**</p><ul><li><p>SNMP walk value: `1.3.6.1.4.1.14988.1.1.3.10.{#SNMPINDEX}`</p></li><li><p>Custom multiplier: `0.1`</p></li><li><p>Discard unchanged with heartbeat: `3m`</p></li></ul>|
+|Device: Temperature|<p>MIB: MIKROTIK-MIB</p><p>mtxrHlTemperature Device temperature in Celsius (degrees C).</p><p>Might be missing in entry models (RB750, RB450G..).</p><p></p><p>Reference: http://wiki.mikrotik.com/wiki/Manual:SNMP</p>|SNMP agent|sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}]<p>**Preprocessing**</p><ul><li><p>Custom multiplier: `0.1`</p></li><li><p>Discard unchanged with heartbeat: `3m`</p></li></ul>|
 
 ### Trigger prototypes for Temperature sensor discovery
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Device: Temperature is above warning threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)>{$TEMP_WARN:"Device"}`|Warning|**Depends on**:<br><ul><li>Device: Temperature is above critical threshold</li></ul>|
-|Device: Temperature is above critical threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)>{$TEMP_CRIT:"Device"}`|High||
-|Device: Temperature is too low||`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)<{$TEMP_CRIT_LOW:"Device"}`|Average||
+|MikroTik: Device: Temperature is above warning threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)>{$TEMP_WARN:"Device"}`|Warning|**Depends on**:<br><ul><li>MikroTik: Device: Temperature is above critical threshold</li></ul>|
+|MikroTik: Device: Temperature is above critical threshold|<p>This trigger uses temperature sensor values as well as temperature sensor status if available.</p>|`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)>{$TEMP_CRIT:"Device"}`|High||
+|MikroTik: Device: Temperature is too low||`avg(/MikroTik CCR1036-8G-2SEM by SNMP/sensor.temp.value[mtxrHlTemperature.{#SNMPINDEX}],5m)<{$TEMP_CRIT_LOW:"Device"}`|Average||
 
 ### LLD rule LTE modem discovery
 
@@ -184,10 +182,10 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Interface {#IFNAME}({#IFALIAS}): LTE modem RSSI is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rssi[mtxrLTEModemSignalRSSI.{#SNMPINDEX}],5m) < {$LTEMODEM.RSSI.MIN.WARN}`|Warning||
-|Interface {#IFNAME}({#IFALIAS}): LTE modem RSRP is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rsrp[mtxrLTEModemSignalRSRP.{#SNMPINDEX}],5m) < {$LTEMODEM.RSRP.MIN.WARN}`|Warning||
-|Interface {#IFNAME}({#IFALIAS}): LTE modem RSRQ is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rsrq[mtxrLTEModemSignalRSRQ.{#SNMPINDEX}],5m) < {$LTEMODEM.RSRQ.MIN.WARN}`|Warning||
-|Interface {#IFNAME}({#IFALIAS}): LTE modem SINR is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.sinr[mtxrLTEModemSignalSINR.{#SNMPINDEX}],5m) < {$LTEMODEM.SINR.MIN.WARN}`|Warning||
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): LTE modem RSSI is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rssi[mtxrLTEModemSignalRSSI.{#SNMPINDEX}],5m) < {$LTEMODEM.RSSI.MIN.WARN}`|Warning||
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): LTE modem RSRP is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rsrp[mtxrLTEModemSignalRSRP.{#SNMPINDEX}],5m) < {$LTEMODEM.RSRP.MIN.WARN}`|Warning||
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): LTE modem RSRQ is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.rsrq[mtxrLTEModemSignalRSRQ.{#SNMPINDEX}],5m) < {$LTEMODEM.RSRQ.MIN.WARN}`|Warning||
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): LTE modem SINR is low||`max(/MikroTik CCR1036-8G-2SEM by SNMP/lte.modem.sinr[mtxrLTEModemSignalSINR.{#SNMPINDEX}],5m) < {$LTEMODEM.SINR.MIN.WARN}`|Warning||
 
 ### LLD rule AP channel discovery
 
@@ -224,7 +222,7 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Interface {#IFNAME}({#IFALIAS}): AP interface {#IFNAME}({#IFALIAS}) is not running|<p>Access point interface can be not running by different reasons - disabled interface, power off, network link down.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/ssid.state[mtxrWlCMState.{#SNMPINDEX}])<>"running-ap"`|Warning||
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): AP interface {#IFNAME}({#IFALIAS}) is not running|<p>Access point interface can be not running by different reasons - disabled interface, power off, network link down.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/ssid.state[mtxrWlCMState.{#SNMPINDEX}])<>"running-ap"`|Warning||
 
 ### LLD rule Storage discovery
 
@@ -244,8 +242,8 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Disk-{#SNMPINDEX}: Disk space is critically low|<p>Two conditions should match: First, space utilization should be above {$VFS.FS.PUSED.MAX.CRIT:"Disk-{#SNMPINDEX}"}.<br> Second condition should be one of the following:<br> - The disk free space is less than {$VFS.FS.FREE.MIN.CRIT:"Disk-{#SNMPINDEX}"}.<br> - The disk will be full in less than 24 hours.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.CRIT:"Disk-{#SNMPINDEX}"} and ((last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.total[hrStorageSize.{#SNMPINDEX}])-last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.used[hrStorageSize.{#SNMPINDEX}]))<{$VFS.FS.FREE.MIN.CRIT:"Disk-{#SNMPINDEX}"} or timeleft(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}],1h,100)<1d)`|Average|**Manual close**: Yes|
-|Disk-{#SNMPINDEX}: Disk space is low|<p>Two conditions should match: First, space utilization should be above {$VFS.FS.PUSED.MAX.WARN:"Disk-{#SNMPINDEX}"}.<br> Second condition should be one of the following:<br> - The disk free space is less than {$VFS.FS.FREE.MIN.WARN:"Disk-{#SNMPINDEX}"}.<br> - The disk will be full in less than 24 hours.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.WARN:"Disk-{#SNMPINDEX}"} and ((last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.total[hrStorageSize.{#SNMPINDEX}])-last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.used[hrStorageSize.{#SNMPINDEX}]))<{$VFS.FS.FREE.MIN.WARN:"Disk-{#SNMPINDEX}"} or timeleft(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}],1h,100)<1d)`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Disk-{#SNMPINDEX}: Disk space is critically low</li></ul>|
+|MikroTik: Disk-{#SNMPINDEX}: Disk space is critically low|<p>Two conditions should match: First, space utilization should be above {$VFS.FS.PUSED.MAX.CRIT:"Disk-{#SNMPINDEX}"}.<br> Second condition should be one of the following:<br> - The disk free space is less than {$VFS.FS.FREE.MIN.CRIT:"Disk-{#SNMPINDEX}"}.<br> - The disk will be full in less than 24 hours.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.CRIT:"Disk-{#SNMPINDEX}"} and ((last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.total[hrStorageSize.{#SNMPINDEX}])-last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.used[hrStorageSize.{#SNMPINDEX}]))<{$VFS.FS.FREE.MIN.CRIT:"Disk-{#SNMPINDEX}"} or timeleft(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}],1h,100)<1d)`|Average|**Manual close**: Yes|
+|MikroTik: Disk-{#SNMPINDEX}: Disk space is low|<p>Two conditions should match: First, space utilization should be above {$VFS.FS.PUSED.MAX.WARN:"Disk-{#SNMPINDEX}"}.<br> Second condition should be one of the following:<br> - The disk free space is less than {$VFS.FS.FREE.MIN.WARN:"Disk-{#SNMPINDEX}"}.<br> - The disk will be full in less than 24 hours.</p>|`last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}])>{$VFS.FS.PUSED.MAX.WARN:"Disk-{#SNMPINDEX}"} and ((last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.total[hrStorageSize.{#SNMPINDEX}])-last(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.used[hrStorageSize.{#SNMPINDEX}]))<{$VFS.FS.FREE.MIN.WARN:"Disk-{#SNMPINDEX}"} or timeleft(/MikroTik CCR1036-8G-2SEM by SNMP/vfs.fs.pused[hrStorageSize.{#SNMPINDEX}],1h,100)<1d)`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: Disk-{#SNMPINDEX}: Disk space is critically low</li></ul>|
 
 ### LLD rule Network interfaces discovery
 
@@ -271,10 +269,10 @@ Refer to the vendor documentation.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Interface {#IFNAME}({#IFALIAS}): Link down|<p>This trigger expression works as follows:<br>1. It can be triggered if the operations status is down.<br>2. `{$IFCONTROL:"{#IFNAME}"}=1` - a user can redefine the context macro to "0", marking this interface as not important. No new trigger will be fired if this interface is down.<br>3. `last(/TEMPLATE_NAME/METRIC,#1)<>last(/TEMPLATE_NAME/METRIC,#2)` - the trigger fires only if the operational status was up to (1) sometime before (so, does not fire for "eternal off" interfaces.)<br><br>WARNING: if closed manually - it will not fire again on the next poll, because of .diff.</p>|`{$IFCONTROL:"{#IFNAME}"}=1 and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))`|Average|**Manual close**: Yes|
-|Interface {#IFNAME}({#IFALIAS}): High bandwidth usage|<p>The utilization of the network interface is close to its estimated maximum bandwidth.</p>|`(avg(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) or avg(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])) and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
-|Interface {#IFNAME}({#IFALIAS}): High error rate|<p>It recovers when it is below 80% of the `{$IF.ERRORS.WARN:"{#IFNAME}"}` threshold.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"} or min(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"}`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
-|Interface {#IFNAME}({#IFALIAS}): Ethernet has changed to lower speed than it was before|<p>This Ethernet connection has transitioned down from its known maximum speed. This might be a sign of autonegotiation issues. Acknowledge to close the problem manually.</p>|`change(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])<0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0 and ( last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=6 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=7 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=11 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=62 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=69 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=117 ) and (last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2)`|Info|**Manual close**: Yes<br>**Depends on**:<br><ul><li>Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): Link down|<p>This trigger expression works as follows:<br>1. It can be triggered if the operations status is down.<br>2. `{$IFCONTROL:"{#IFNAME}"}=1` - a user can redefine the context macro to "0", marking this interface as not important. No new trigger will be fired if this interface is down.<br>3. `last(/TEMPLATE_NAME/METRIC,#1)<>last(/TEMPLATE_NAME/METRIC,#2)` - the trigger fires only if the operational status was up to (1) sometime before (so, does not fire for "eternal off" interfaces.)<br><br>WARNING: if closed manually - it will not fire again on the next poll, because of .diff.</p>|`{$IFCONTROL:"{#IFNAME}"}=1 and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])=2 and (last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}],#2))`|Average|**Manual close**: Yes|
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): High bandwidth usage|<p>The utilization of the network interface is close to its estimated maximum bandwidth.</p>|`(avg(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.in[ifHCInOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}]) or avg(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.out[ifHCOutOctets.{#SNMPINDEX}],15m)>({$IF.UTIL.MAX:"{#IFNAME}"}/100)*last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])) and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): High error rate|<p>It recovers when it is below 80% of the `{$IF.ERRORS.WARN:"{#IFNAME}"}` threshold.</p>|`min(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.in.errors[ifInErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"} or min(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.out.errors[ifOutErrors.{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN:"{#IFNAME}"}`|Warning|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
+|MikroTik: Interface {#IFNAME}({#IFALIAS}): Ethernet has changed to lower speed than it was before|<p>This Ethernet connection has transitioned down from its known maximum speed. This might be a sign of autonegotiation issues. Acknowledge to close the problem manually.</p>|`change(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])<0 and last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0 and ( last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=6 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=7 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=11 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=62 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=69 or last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.type[ifType.{#SNMPINDEX}])=117 ) and (last(/MikroTik CCR1036-8G-2SEM by SNMP/net.if.status[ifOperStatus.{#SNMPINDEX}])<>2)`|Info|**Manual close**: Yes<br>**Depends on**:<br><ul><li>MikroTik: Interface {#IFNAME}({#IFALIAS}): Link down</li></ul>|
 
 ## Feedback
 

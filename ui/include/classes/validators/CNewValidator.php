@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -225,6 +225,25 @@ class CNewValidator {
 
 					if ((!is_string($value) && !is_numeric($value))
 							|| !$this->check_db_value($table_fields[$params['field']], $value, $flags)) {
+						$this->addError($fatal,
+							is_scalar($value)
+								? _s('Incorrect value "%1$s" for "%2$s" field.', $value, $field)
+								: _s('Incorrect value for "%1$s" field.', $field)
+						);
+
+						return false;
+					}
+					break;
+
+				case 'setting':
+					$field_schema = ['type' => CSettingsSchema::getDbType($params['field'])];
+
+					if ($field_schema['type'] == DB::FIELD_TYPE_CHAR) {
+						$field_schema['length'] = CSettingsSchema::getFieldLength($params['field']);
+					}
+
+					if ((!is_string($value) && !is_numeric($value))
+							|| !$this->check_db_value($field_schema, $value, $flags)) {
 						$this->addError($fatal,
 							is_scalar($value)
 								? _s('Incorrect value "%1$s" for "%2$s" field.', $value, $field)

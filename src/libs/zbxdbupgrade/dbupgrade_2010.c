@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -1701,6 +1701,9 @@ static int	DBpatch_2010195_replace_key_param_cb(const char *data, int key_type, 
 	*new_param = zbx_dsprintf(NULL, "^%s$", param);
 
 	zbx_free(param);
+
+	if (0 != quoted)
+		quoted = 2;
 
 	if (FAIL == (ret = zbx_quote_key_param(new_param, quoted)))
 		zbx_free(new_param);

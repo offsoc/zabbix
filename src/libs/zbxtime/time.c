@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -1115,30 +1115,46 @@ static int zbx_iso8601_timezone(const char *zone, long int *offset)
  *                                                                            *
  * Purpose: parse string from iso8601 datetime (xml base) to UTC              *
  *          without millisecond, supported formats:                           *
- *              yyyy-mm-ddThh:mm:ss                                          *
+ *              yyyy-mm-ddThh:mm:ss                                           *
  *              yyyy-mm-ddThh:mm:ssZ                                          *
  *              yyyy-mm-ddThh:mm:ss+hh:mm                                     *
  *              yyyy-mm-ddThh:mm:ss-hh:mm                                     *
  *              yyyy-mm-ddThh:mm:ss +hh:mm                                    *
  *              yyyy-mm-ddThh:mm:ss -hh:mm                                    *
+ *              yyyy-mm-ddThh:mm:ss+hhmm                                      *
+ *              yyyy-mm-ddThh:mm:ss-hhmm                                      *
+ *              yyyy-mm-ddThh:mm:ss +hhmm                                     *
+ *              yyyy-mm-ddThh:mm:ss -hhmm                                     *
  *              yyyy-mm-ddThh:mm:ss.ccc                                       *
  *              yyyy-mm-ddThh:mm:ss.cccZ                                      *
  *              yyyy-mm-ddThh:mm:ss.ccc+hh:mm                                 *
  *              yyyy-mm-ddThh:mm:ss.ccc-hh:mm                                 *
  *              yyyy-mm-ddThh:mm:ss.ccc +hh:mm                                *
  *              yyyy-mm-ddThh:mm:ss.ccc -hh:mm                                *
- *              yyyy-mm-dd hh:mm:ss                                          *
+ *              yyyy-mm-ddThh:mm:ss.ccc+hhmm                                  *
+ *              yyyy-mm-ddThh:mm:ss.ccc-hhmm                                  *
+ *              yyyy-mm-ddThh:mm:ss.ccc +hhmm                                 *
+ *              yyyy-mm-ddThh:mm:ss.ccc -hhmm                                 *
+ *              yyyy-mm-dd hh:mm:ss                                           *
  *              yyyy-mm-dd hh:mm:ssZ                                          *
  *              yyyy-mm-dd hh:mm:ss+hh:mm                                     *
  *              yyyy-mm-dd hh:mm:ss-hh:mm                                     *
  *              yyyy-mm-dd hh:mm:ss +hh:mm                                    *
  *              yyyy-mm-dd hh:mm:ss -hh:mm                                    *
+ *              yyyy-mm-dd hh:mm:ss+hhmm                                      *
+ *              yyyy-mm-dd hh:mm:ss-hhmm                                      *
+ *              yyyy-mm-dd hh:mm:ss +hhmm                                     *
+ *              yyyy-mm-dd hh:mm:ss -hhmm                                     *
  *              yyyy-mm-dd hh:mm:ss.ccc                                       *
  *              yyyy-mm-dd hh:mm:ss.cccZ                                      *
  *              yyyy-mm-dd hh:mm:ss.ccc+hh:mm                                 *
  *              yyyy-mm-dd hh:mm:ss.ccc-hh:mm                                 *
  *              yyyy-mm-dd hh:mm:ss.ccc +hh:mm                                *
  *              yyyy-mm-dd hh:mm:ss.ccc -hh:mm                                *
+ *              yyyy-mm-dd hh:mm:ss.ccc+hhmm                                  *
+ *              yyyy-mm-dd hh:mm:ss.ccc-hhmm                                  *
+ *              yyyy-mm-dd hh:mm:ss.ccc +hhmm                                 *
+ *              yyyy-mm-dd hh:mm:ss.ccc -hhmm                                 *
  *                                                                            *
  * Parameters: str  - [IN] iso8601 datetime string                            *
  *             time - [OUT] parsed tm value                                   *

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -36,6 +36,7 @@
 #define ZBX_TM_TASK_DATA				7
 #define ZBX_TM_TASK_DATA_RESULT				8
 #define ZBX_TM_PROXYDATA				9
+#define ZBX_TM_TASK_COPY_NESTED_HOST_PROTOTYPES		10
 
 /* task manager task states */
 #define ZBX_TM_STATUS_NEW			1

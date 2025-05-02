@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -220,8 +220,7 @@ class C70ImportConverterTest extends CImportConverterTest {
 	 * @param array $expected
 	 */
 	public function testConvert(array $source, array $expected): void {
-		$result = $this->createConverter()->convert($this->createSource($source));
-		$this->assertConvert($this->createExpectedResult($expected), $result);
+		$this->assertConvert($this->createExpectedResult($expected), $this->createSource($source));
 	}
 
 	protected function createSource(array $data = []): array {

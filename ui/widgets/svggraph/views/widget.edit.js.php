@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,21 +18,29 @@ use Widgets\SvgGraph\Includes\CWidgetFieldDataSet;
 
 ?>
 
-window.widget_svggraph_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	/**
 	 * @type {Map<HTMLLIElement, CSortable>}
 	 */
 	#single_items_sortable = new Map();
 
+	/**
+	 * @type {number}
+	 */
+	#dataset_row_unique_id = 0;
+
 	init({form_tabs_id, color_palette, templateid}) {
 		colorPalette.setThemeColors(color_palette);
 
 		this._$overlay_body = jQuery('.overlay-dialogue-body');
-		this._form = document.getElementById('widget-dialogue-form');
+		this._form = this.getForm();
 		this._templateid = templateid;
 		this._dataset_wrapper = document.getElementById('data_sets');
 		this._any_ds_aggregation_function_enabled = false;
+
+		this.#dataset_row_unique_id =
+			this._dataset_wrapper.querySelectorAll('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>').length;
 
 		this._$overlay_body.on('scroll', () => {
 			const $preview = jQuery('.<?= ZBX_STYLE_SVG_GRAPH_PREVIEW ?>', this._$overlay_body);
@@ -58,13 +66,24 @@ window.widget_svggraph_form = new class {
 			.on('tabsactivate', () => jQuery.colorpicker('hide'))
 			.on('change', 'input, z-select, .multiselect', () => this.onGraphConfigChange());
 
+		this._dataset_wrapper.addEventListener('input', e => {
+			if (e.target.matches('input[name$="[data_set_label]"]') || e.target.matches('input[name$="[timeshift]"]')) {
+				this.registerUpdateEvent();
+			}
+		});
+
 		this._datasetTabInit();
 		this._problemsTabInit();
 
-		this.onGraphConfigChange();
+		this._updateForm();
+		this._updatePreview();
+
+		this.ready();
 	}
 
 	onGraphConfigChange() {
+		this.registerUpdateEvent();
+
 		this._updateForm();
 		this._updatePreview();
 	}
@@ -96,36 +115,6 @@ window.widget_svggraph_form = new class {
 							jQuery(this).attr('name').replace(/([a-z]+\[)\d+(]\[[a-z_]+])/, `$1${k + i}$2`)
 						);
 					});
-
-				jQuery(`[id^="${var_prefix}_"]`, this)
-					.filter(function () {
-						return jQuery(this).attr('id').match(/[a-z]+_\d+_[a-z_]+/);
-					})
-					.each(function () {
-						jQuery(this).attr('id',
-							jQuery(this).attr('id').replace(/([a-z]+_)\d+(_[a-z_]+)/, `$1${k + i}$2`)
-						);
-					});
-
-				jQuery(`label[for^="${var_prefix}_"]`, this)
-					.filter(function () {
-						return jQuery(this).attr('for').match(/[a-z]+_\d+_[a-z_]+/);
-					})
-					.each(function () {
-						jQuery(this).attr('for',
-							jQuery(this).attr('for').replace(/([a-z]+_)\d+(_[a-z_]+)/, `$1${k + i}$2`)
-						);
-					});
-
-				jQuery(`[id^="lbl_${var_prefix}_"]`, this)
-					.filter(function () {
-						return jQuery(this).attr('id').match(/lbl_[a-z]+_\d+_[a-z_]+/);
-					})
-					.each(function () {
-						jQuery(this).attr('id',
-							jQuery(this).attr('id').replace(/(lbl_[a-z]+_)\d+(_[a-z_]+)/, `$1${k + i}$2`)
-						);
-					});
 			});
 		}
 	}
@@ -134,22 +123,36 @@ window.widget_svggraph_form = new class {
 		this._updateDatasetsLabel();
 
 		// Initialize vertical accordion.
-		jQuery(this._dataset_wrapper)
-			.on('focus', '.<?= CMultiSelect::ZBX_STYLE_CLASS ?> input.input', function() {
-				jQuery('#data_sets').zbx_vertical_accordion('expandNth',
-					jQuery(this).closest('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>').index()
+
+		const $data_sets = jQuery(this._dataset_wrapper);
+
+		$data_sets
+			.on('focus', '.<?= CMultiSelect::ZBX_STYLE_CLASS ?> input.input', function(e) {
+				const list_item = e.target.closest('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>');
+
+				if (list_item.classList.contains('<?= ZBX_STYLE_LIST_ACCORDION_ITEM_OPENED ?>')) {
+					return;
+				}
+
+				$data_sets.zbx_vertical_accordion('expandNth',
+					[...list_item.parentElement.children].indexOf(list_item)
 				);
 			})
-			.on('click', function(e) {
+			.on('click', '.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>', function(e) {
 				if (!e.target.classList.contains('color-picker-preview')) {
 					jQuery.colorpicker('hide');
 				}
 
+				const list_item = e.target.closest('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>');
+
+				if (list_item.classList.contains('<?= ZBX_STYLE_LIST_ACCORDION_ITEM_OPENED ?>')) {
+					return;
+				}
+
 				if (e.target.classList.contains('js-click-expand')
-						|| e.target.classList.contains('color-picker-preview')
-						|| e.target.classList.contains('<?= ZBX_STYLE_BTN_GREY ?>')) {
-					jQuery('#data_sets').zbx_vertical_accordion('expandNth',
-						jQuery(e.target).closest('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>').index()
+						|| e.target.classList.contains('color-picker-preview')) {
+					$data_sets.zbx_vertical_accordion('expandNth',
+						[...list_item.parentElement.children].indexOf(list_item)
 					);
 				}
 			})
@@ -177,7 +180,7 @@ window.widget_svggraph_form = new class {
 						message_block.style.display = 'none';
 					}
 
-					widget_svggraph_form._initSingleItemSortable(dataset);
+					widget_form._initSingleItemSortable(dataset);
 				}
 			})
 			.zbx_vertical_accordion({handler: '.<?= ZBX_STYLE_LIST_ACCORDION_ITEM_TOGGLE ?>'});
@@ -185,10 +188,7 @@ window.widget_svggraph_form = new class {
 		// Initialize rangeControl UI elements.
 		jQuery('.<?= CRangeControl::ZBX_STYLE_CLASS ?>', jQuery(this._dataset_wrapper)).rangeControl();
 
-		// Initialize pattern fields.
-		jQuery('.multiselect', jQuery(this._dataset_wrapper)).multiSelect();
-
-		for (const colorpicker of jQuery('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const colorpicker of jQuery(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			jQuery(colorpicker).colorpicker({
 				onUpdate: function(color) {
 					jQuery('.<?= ZBX_STYLE_COLOR_PREVIEW_BOX ?>',
@@ -335,27 +335,28 @@ window.widget_svggraph_form = new class {
 
 		const used_colors = [];
 
-		for (const color of this._form.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const color of this._form.querySelectorAll(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			if (color.value !== '') {
 				used_colors.push(color.value);
 			}
 		}
 
-		this._dataset_wrapper.insertAdjacentHTML('beforeend', template.evaluate({
-			rowNum: this._dataset_wrapper.querySelectorAll('.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>').length,
+		const fragment = document.createRange().createContextualFragment(template.evaluate({
+			rowNum: this.#dataset_row_unique_id++,
 			color: type == <?= CWidgetFieldDataSet::DATASET_TYPE_SINGLE_ITEM ?>
 				? ''
 				: colorPalette.getNextColor(used_colors)
 		}));
 
+		this._dataset_wrapper.append(fragment);
+
+		this.updateVariableOrder(this._dataset_wrapper, '.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>', 'ds');
+		this._updateDatasetsLabel();
+
 		const dataset = this._getOpenedDataset();
 
-		for (const colorpicker of dataset.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const colorpicker of dataset.querySelectorAll(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			jQuery(colorpicker).colorpicker({appendTo: '.overlay-dialogue-body'});
-		}
-
-		for (const multiselect of dataset.querySelectorAll('.multiselect')) {
-			jQuery(multiselect).multiSelect();
 		}
 
 		for (const range_control of dataset.querySelectorAll('.<?= CRangeControl::ZBX_STYLE_CLASS ?>')) {
@@ -368,6 +369,8 @@ window.widget_svggraph_form = new class {
 
 		this._initDataSetSortable();
 		this._updateForm();
+
+		this.registerUpdateEvent();
 	}
 
 	_cloneDataset() {
@@ -464,6 +467,8 @@ window.widget_svggraph_form = new class {
 				this.updateVariableOrder(this._dataset_wrapper, '.<?= ZBX_STYLE_LIST_ACCORDION_ITEM ?>', 'ds');
 				this._updateDatasetsLabel();
 				this._updatePreview();
+
+				this.registerUpdateEvent();
 			});
 		}
 	}
@@ -522,7 +527,7 @@ window.widget_svggraph_form = new class {
 					srctbl: 'items',
 					srcfld1: 'itemid',
 					srcfld2: 'name',
-					dstfrm: widget_svggraph_form._form.id,
+					dstfrm: this._form.id,
 					dstfld1: `items_${dataset_index}_${row_index}_itemid`,
 					dstfld2: `items_${dataset_index}_${row_index}_name`,
 					numeric: 1,
@@ -538,7 +543,7 @@ window.widget_svggraph_form = new class {
 					srctbl: 'items',
 					srcfld1: 'itemid',
 					srcfld2: 'name',
-					dstfrm: widget_svggraph_form._form.id,
+					dstfrm: this._form.id,
 					dstfld1: `items_${dataset_index}_${row_index}_itemid`,
 					dstfld2: `items_${dataset_index}_${row_index}_name`,
 					numeric: 1,
@@ -566,7 +571,7 @@ window.widget_svggraph_form = new class {
 	_selectWidget(row = null, exclude_typed_references = []) {
 		const widgets = ZABBIX.Dashboard.getReferableWidgets({
 			type: CWidgetsData.DATA_TYPE_ITEM_ID,
-			widget_context: ZABBIX.Dashboard.getEditingWidgetContext()
+			widget_context: ZABBIX.Dashboard.getWidgetEditingContext()
 		});
 
 		widgets.sort((a, b) => a.getHeaderName().localeCompare(b.getHeaderName()));
@@ -651,7 +656,7 @@ window.widget_svggraph_form = new class {
 
 		const used_colors = [];
 
-		for (const color of this._form.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const color of this._form.querySelectorAll(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			if (color.value !== '') {
 				used_colors.push(color.value);
 			}
@@ -660,6 +665,8 @@ window.widget_svggraph_form = new class {
 		jQuery(`#items_${dataset_index}_${items_new_index}_color`)
 			.val(colorPalette.getNextColor(used_colors))
 			.colorpicker();
+
+		this.registerUpdateEvent();
 	}
 
 	_removeSingleItem(element) {
@@ -670,6 +677,8 @@ window.widget_svggraph_form = new class {
 		this._updateSingleItemsOrder(dataset);
 		this._initSingleItemSortable(dataset);
 		this._updatePreview();
+
+		this.registerUpdateEvent();
 	}
 
 	_initSingleItemSortable(dataset) {
@@ -690,6 +699,8 @@ window.widget_svggraph_form = new class {
 		sortable.on(CSortable.EVENT_SORT, () => {
 			this._updateSingleItemsOrder(dataset);
 			this._updatePreview();
+
+			this.registerUpdateEvent();
 		});
 
 		this.#single_items_sortable.set(dataset, sortable);
@@ -699,7 +710,7 @@ window.widget_svggraph_form = new class {
 		const widgets = ZABBIX.Dashboard
 			.getReferableWidgets({
 				type: CWidgetsData.DATA_TYPE_ITEM_ID,
-				widget_context: ZABBIX.Dashboard.getEditingWidgetContext()
+				widget_context: ZABBIX.Dashboard.getWidgetEditingContext()
 			})
 			.reduce((map, widget) => map.set(widget.getFields().reference, widget.getHeaderName()), new Map());
 
@@ -732,7 +743,7 @@ window.widget_svggraph_form = new class {
 	}
 
 	_updateSingleItemsOrder(dataset) {
-		jQuery.colorpicker('destroy', jQuery('.single-item-table .<?= ZBX_STYLE_COLOR_PICKER ?> input', dataset));
+		jQuery.colorpicker('destroy', jQuery(`.single-item-table .${ZBX_STYLE_COLOR_PICKER} input`, dataset));
 
 		const dataset_index = dataset.getAttribute('data-set');
 
@@ -744,7 +755,7 @@ window.widget_svggraph_form = new class {
 			row.querySelector('.table-col-action input[name$="[itemids][]"]').id = `${prefix}_itemid`;
 			row.querySelector('.table-col-action input[name$="[references][]"]').id = `${prefix}_reference`;
 
-			const colorpicker = row.querySelector('.single-item-table .<?= ZBX_STYLE_COLOR_PICKER ?> input');
+			const colorpicker = row.querySelector(`.single-item-table .${ZBX_STYLE_COLOR_PICKER} input`);
 
 			colorpicker.id = `${prefix}_color`;
 			jQuery(colorpicker).colorpicker({appendTo: '.overlay-dialogue-body'});
@@ -890,7 +901,7 @@ window.widget_svggraph_form = new class {
 			lefty_checkbox.checked = true;
 		}
 
-		for (const element of document.querySelectorAll('#lefty_min, #lefty_max, #lefty_units')) {
+		for (const element of document.querySelectorAll('#lefty_scale, #lefty_min, #lefty_max, #lefty_units')) {
 			element.disabled = !lefty_on;
 		}
 
@@ -906,7 +917,7 @@ window.widget_svggraph_form = new class {
 			righty_checkbox.checked = true;
 		}
 
-		for (const element of document.querySelectorAll('#righty_min, #righty_max, #righty_units')) {
+		for (const element of document.querySelectorAll('#righty_scale, #righty_min, #righty_max, #righty_units')) {
 			element.disabled = !righty_on;
 		}
 
@@ -940,6 +951,7 @@ window.widget_svggraph_form = new class {
 
 	#update_preview_abort_controller = null;
 	#update_preview_loading_timeout = null;
+	#update_preview_had_errors = false;
 
 	_updatePreview() {
 		if (this.#update_preview_abort_controller !== null) {
@@ -963,34 +975,44 @@ window.widget_svggraph_form = new class {
 
 		if (fields.ds !== undefined) {
 			for (const [dataset_key, dataset] of Object.entries(fields.ds)) {
-				if (dataset.dataset_type != '<?= CWidgetFieldDataSet::DATASET_TYPE_SINGLE_ITEM ?>') {
-					continue;
-				}
-
 				const dataset_new = {
 					...dataset,
-					itemids: [],
-					color: []
+					override_hostid: []
 				};
 
-				if (dataset.itemids !== undefined) {
-					for (const [item_index, itemid] of dataset.itemids.entries()) {
-						if (itemid === '0') {
-							const resolved_itemid = this.#resolveWidget(dataset.references[item_index]);
+				if (dataset.dataset_type == '<?= CWidgetFieldDataSet::DATASET_TYPE_SINGLE_ITEM ?>') {
+					dataset_new.itemids = [];
+					dataset_new.color = [];
 
-							if (resolved_itemid !== null) {
-								dataset_new.itemids.push(resolved_itemid);
+					if (dataset.itemids !== undefined) {
+						for (const [item_index, itemid] of dataset.itemids.entries()) {
+							if (itemid === '0') {
+								const resolved_itemid = this.#resolveTypedReference(dataset.references[item_index]);
+
+								if (resolved_itemid !== null) {
+									dataset_new.itemids.push(resolved_itemid);
+									dataset_new.color.push(dataset.color[item_index]);
+								}
+							}
+							else {
+								dataset_new.itemids.push(itemid);
 								dataset_new.color.push(dataset.color[item_index]);
 							}
 						}
-						else {
-							dataset_new.itemids.push(itemid);
-							dataset_new.color.push(dataset.color[item_index]);
-						}
 					}
+
+					delete dataset_new.references;
 				}
 
-				delete dataset_new.references;
+				if (dataset.override_hostid !== undefined) {
+					const resolved_override_hostid = this.#resolveTypedReference(
+						dataset.override_hostid[CWidgetBase.FOREIGN_REFERENCE_KEY]
+					);
+
+					if (resolved_override_hostid !== null) {
+						dataset_new.override_hostid.push(resolved_override_hostid);
+					}
+				}
 
 				fields.ds[dataset_key] = dataset_new;
 			}
@@ -1029,9 +1051,12 @@ window.widget_svggraph_form = new class {
 					throw {error: response.error};
 				}
 
-				for (const element of this._form.parentNode.children) {
-					if (element.matches('.msg-good, .msg-bad, .msg-warning')) {
-						element.parentNode.removeChild(element);
+				// Do not remove initial messages displayed by CWidgetEditDialogue.
+				if (this.#update_preview_had_errors) {
+					for (const element of this._form.parentNode.children) {
+						if (element.matches('.msg-good, .msg-bad, .msg-warning')) {
+							element.parentNode.removeChild(element);
+						}
 					}
 				}
 
@@ -1080,10 +1105,12 @@ window.widget_svggraph_form = new class {
 				const message_box = makeMessageBox('bad', messages, title)[0];
 
 				this._form.parentNode.insertBefore(message_box, this._form);
+
+				this.#update_preview_had_errors = true;
 			});
 	}
 
-	#resolveWidget(typed_reference) {
+	#resolveTypedReference(typed_reference) {
 		const {reference, type} = CWidgetBase.parseTypedReference(typed_reference);
 
 		const data = ZABBIX.EventHub.getData({

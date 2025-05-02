@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -87,16 +87,19 @@ int	dbconn_init(char **error)
 
 		if (ZBX_DB_OK != (ret = dbconn_open(db)))
 		{
-			dbconn_errlog(db, ERR_Z3002, 0, sqlite3_errmsg(db->conn), db_config->dbname);
+			if (ZBX_DB_FAIL == ret)
+				dbconn_errlog(db, ERR_Z3002, 0, sqlite3_errmsg(db->conn), db_config->dbname);
+
 			*error = zbx_strdup(*error, "cannot open database");
-			return FAIL;
+			ret = FAIL;
 		}
 		else
 		{
 			zbx_dbconn_execute(db, "%s", zbx_dbschema_get_schema());
 			zbx_dbconn_close(db);
-			zbx_dbconn_free(db);
 		}
+
+		zbx_dbconn_free(db);
 
 		return (ZBX_DB_OK == ret ? SUCCEED : FAIL);
 	}
@@ -252,11 +255,8 @@ static int	dbconn_is_recoverable_error(zbx_dbconn_t *db, const PGresult *pg_resu
 	if (0 == zbx_strcmp_null(PQresultErrorField(pg_result, PG_DIAG_SQLSTATE), ZBX_PG_DEADLOCK))
 		return SUCCEED;
 
-	if (1 == db->config->read_only_recoverable &&
-			0 == zbx_strcmp_null(PQresultErrorField(pg_result, PG_DIAG_SQLSTATE), ZBX_PG_READ_ONLY))
-	{
+	if (0 == zbx_strcmp_null(PQresultErrorField(pg_result, PG_DIAG_SQLSTATE), ZBX_PG_READ_ONLY))
 		return SUCCEED;
-	}
 
 	return FAIL;
 }
@@ -632,6 +632,26 @@ static int	dbconn_open(zbx_dbconn_t *db)
 
 	zbx_db_free_result(result);
 
+	result = dbconn_select(db, "show default_transaction_read_only");
+
+	if ((zbx_db_result_t)ZBX_DB_DOWN == result || NULL == result)
+	{
+		ret = (NULL == result) ? ZBX_DB_FAIL : ZBX_DB_DOWN;
+		goto out;
+	}
+
+	if (NULL != (row = zbx_db_fetch(result)))
+	{
+		if (0 == strcmp(row[0], "on"))
+		{
+			zbx_db_free_result(result);
+			ret = ZBX_DB_RONLY;
+			goto out;
+		}
+	}
+
+	zbx_db_free_result(result);
+
 	if (90000 <= db_get_server_version())
 	{
 		/* change the output format for values of type bytea from hex (the default) to escape */
@@ -641,7 +661,8 @@ static int	dbconn_open(zbx_dbconn_t *db)
 out:
 #elif defined(HAVE_SQLITE3)
 #ifdef HAVE_FUNCTION_SQLITE3_OPEN_V2
-	if (SQLITE_OK != sqlite3_open_v2(db->config->dbname, &db->conn, SQLITE_OPEN_READWRITE, NULL))
+	if (SQLITE_OK != sqlite3_open_v2(db->config->dbname, &db->conn, SQLITE_OPEN_READWRITE |
+			SQLITE_OPEN_CREATE, NULL))
 #else
 	if (SQLITE_OK != sqlite3_open(db->config->dbname, &db->conn))
 #endif
@@ -1112,8 +1133,16 @@ static zbx_db_result_t	dbconn_vselect(zbx_dbconn_t *db, const char *fmt, va_list
 
 	if (PGRES_TUPLES_OK != PQresultStatus(result->pg_result))
 	{
+		zbx_err_codes_t	errcode;
+
+		if (0 == zbx_strcmp_null(PQresultErrorField(result->pg_result, PG_DIAG_SQLSTATE), ZBX_PG_READ_ONLY))
+			errcode = ERR_Z3009;
+		else
+			errcode = ERR_Z3005;
+
 		db_get_postgresql_error(&error, result->pg_result);
-		dbconn_errlog(db, ERR_Z3005, 0, error, sql);
+		dbconn_errlog(db, errcode, 0, error, sql);
+
 		zbx_free(error);
 
 		if (SUCCEED == dbconn_is_recoverable_error(db, result->pg_result))
@@ -1299,7 +1328,11 @@ void	zbx_dbconn_free(zbx_dbconn_t *db)
  ******************************************************************************/
 int	zbx_dbconn_open(zbx_dbconn_t *db)
 {
+#define ZBX_DB_WAIT_RETRY_COUNT	6
 	int	err;
+#if defined(HAVE_POSTGRESQL)
+	int	retries = ZBX_DB_WAIT_RETRY_COUNT;
+#endif
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s() options:%d", __func__, db->connect_options);
 
@@ -1314,7 +1347,13 @@ int	zbx_dbconn_open(zbx_dbconn_t *db)
 	while (ZBX_DB_OK != (err = dbconn_open(db)))
 	{
 		if (ZBX_DB_CONNECT_ONCE == db->connect_options)
+		{
+#if defined(HAVE_POSTGRESQL)
+			if (ZBX_DB_RONLY == err)
+				err = ZBX_DB_DOWN;
+#endif
 			break;
+		}
 
 		if (ZBX_DB_FAIL == err || ZBX_DB_CONNECT_EXIT == db->connect_options)
 		{
@@ -1322,7 +1361,24 @@ int	zbx_dbconn_open(zbx_dbconn_t *db)
 			exit(EXIT_FAILURE);
 		}
 
-		zabbix_log(LOG_LEVEL_ERR, "database is down: reconnecting in %d seconds", ZBX_DB_WAIT_DOWN);
+#if defined(HAVE_POSTGRESQL)
+		if (ZBX_DB_RONLY == err)
+		{
+			if (0 == db->config->read_only_recoverable && 0 >= retries--)
+			{
+				zabbix_log(LOG_LEVEL_ERR, "database is read-only: Exiting...");
+				exit(EXIT_FAILURE);
+			}
+
+			zabbix_log(LOG_LEVEL_ERR, "database is read-only: reconnecting in %d seconds",
+					ZBX_DB_WAIT_DOWN);
+		}
+		else
+#endif
+		{
+			zabbix_log(LOG_LEVEL_ERR, "database is down: reconnecting in %d seconds", ZBX_DB_WAIT_DOWN);
+		}
+
 		db->connection_failure = 1;
 		zbx_sleep(ZBX_DB_WAIT_DOWN);
 	}
@@ -1331,11 +1387,15 @@ int	zbx_dbconn_open(zbx_dbconn_t *db)
 	{
 		zabbix_log(LOG_LEVEL_ERR, "database connection re-established");
 		db->connection_failure = 0;
+#if defined(HAVE_POSTGRESQL)
+		db->last_db_errcode = 0;
+#endif
 	}
 out:
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s():%d", __func__, err);
 
 	return err;
+#undef ZBX_DB_WAIT_RETRY_COUNT
 }
 
 /******************************************************************************
@@ -2196,7 +2256,7 @@ int	zbx_dbconn_pk_exists(zbx_dbconn_t *db, const char *table_name)
 
 /******************************************************************************
  *                                                                            *
- * Parameters: sql - [IN] sql statement                                       *
+ * Parameters: sql - [IN] SQL statement                                       *
  *             ids - [OUT] sorted list of selected uint64 values              *
  *                                                                            *
  ******************************************************************************/
@@ -2219,6 +2279,39 @@ void	zbx_dbconn_select_uint64(zbx_dbconn_t *db, const char *sql, zbx_vector_uint
 	zbx_vector_uint64_sort(ids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 }
 
+static int	dbconn_prepare_multiple_query_str(zbx_dbconn_t *db, const char *query, const char *field_name,
+		const zbx_vector_uint64_t *ids, char **sql, size_t *sql_alloc, size_t *sql_offset)
+{
+#define ZBX_MAX_IDS	950
+	int			i, j, ret = SUCCEED;
+	zbx_vector_str_t	str_ids;
+
+	zbx_vector_str_create(&str_ids);
+
+	for (i = 0; i < ids->values_num; i += ZBX_MAX_IDS)
+	{
+		int	batch_size = MIN(ZBX_MAX_IDS, ids->values_num - i);
+
+		for (j = i; j < i + batch_size; j++)
+			zbx_vector_str_append(&str_ids, zbx_dsprintf(NULL, ZBX_FS_UI64, ids->values[j]));
+
+		zbx_strcpy_alloc(sql, sql_alloc, sql_offset, query);
+		zbx_db_add_str_condition_alloc(sql, sql_alloc, sql_offset, field_name, (const char**)str_ids.values,
+				batch_size);
+		zbx_strcpy_alloc(sql, sql_alloc, sql_offset, ";\n");
+
+		zbx_vector_str_clear_ext(&str_ids, zbx_str_free);
+
+		if (SUCCEED != (ret = zbx_dbconn_execute_overflowed_sql(db, sql, sql_alloc, sql_offset, NULL)))
+			break;
+	}
+
+	zbx_vector_str_destroy(&str_ids);
+
+	return ret;
+#undef ZBX_MAX_IDS
+}
+
 /******************************************************************************
  *                                                                            *
  * Purpose: execute query with large number of primary key matches in smaller *
@@ -2226,25 +2319,46 @@ void	zbx_dbconn_select_uint64(zbx_dbconn_t *db, const char *sql, zbx_vector_uint
  *                                                                            *
  ******************************************************************************/
 int	zbx_dbconn_prepare_multiple_query(zbx_dbconn_t *db, const char *query, const char *field_name,
-		zbx_vector_uint64_t *ids, char **sql, size_t *sql_alloc, size_t *sql_offset)
+		const zbx_vector_uint64_t *ids, char **sql, size_t *sql_alloc, size_t *sql_offset)
 {
-#define ZBX_MAX_IDS	950
 	int	i, ret = SUCCEED;
 
-	for (i = 0; i < ids->values_num; i += ZBX_MAX_IDS)
+	for (i = 0; i < ids->values_num; i += ZBX_DB_LARGE_QUERY_BATCH_SIZE)
 	{
 		zbx_strcpy_alloc(sql, sql_alloc, sql_offset, query);
 		zbx_db_add_condition_alloc(sql, sql_alloc, sql_offset, field_name, &ids->values[i],
-				MIN(ZBX_MAX_IDS, ids->values_num - i));
+				MIN(ZBX_DB_LARGE_QUERY_BATCH_SIZE, ids->values_num - i));
 		zbx_strcpy_alloc(sql, sql_alloc, sql_offset, ";\n");
 
-		if (SUCCEED != (ret = zbx_dbconn_execute_overflowed_sql(db, sql, sql_alloc, sql_offset)))
+		if (SUCCEED != (ret = zbx_dbconn_execute_overflowed_sql(db, sql, sql_alloc, sql_offset, NULL)))
 			break;
 	}
 
 	return ret;
+}
 
-#undef ZBX_MAX_IDS
+static int	dbconn_execute_multiple_query(zbx_dbconn_t *db, const char *query, const char *field_name,
+		const zbx_vector_uint64_t *ids, int as_str)
+{
+	char	*sql = NULL;
+	size_t	sql_alloc = ZBX_KIBIBYTE, sql_offset = 0;
+	int	ret = SUCCEED;
+
+	sql = (char *)zbx_malloc(sql, sql_alloc);
+
+	if (1 == as_str)
+	{
+		ret = dbconn_prepare_multiple_query_str(db, query, field_name, ids, &sql, &sql_alloc, &sql_offset);
+	}
+	else
+		ret = zbx_dbconn_prepare_multiple_query(db, query, field_name, ids, &sql, &sql_alloc, &sql_offset);
+
+	if (SUCCEED == ret && ZBX_DB_OK > zbx_dbconn_flush_overflowed_sql(db, sql, sql_offset))
+		ret = FAIL;
+
+	zbx_free(sql);
+
+	return ret;
 }
 
 /******************************************************************************
@@ -2254,20 +2368,218 @@ int	zbx_dbconn_prepare_multiple_query(zbx_dbconn_t *db, const char *query, const
  *                                                                            *
  ******************************************************************************/
 int	zbx_dbconn_execute_multiple_query(zbx_dbconn_t *db, const char *query, const char *field_name,
-		zbx_vector_uint64_t *ids)
+		const zbx_vector_uint64_t *ids)
 {
-	char	*sql = NULL;
-	size_t	sql_alloc = ZBX_KIBIBYTE, sql_offset = 0;
-	int	ret = SUCCEED;
-
-	sql = (char *)zbx_malloc(sql, sql_alloc);
-
-	ret = zbx_dbconn_prepare_multiple_query(db, query, field_name, ids, &sql, &sql_alloc, &sql_offset);
-
-	if (SUCCEED == ret && ZBX_DB_OK > zbx_dbconn_flush_overflowed_sql(db, sql, sql_offset))
-		ret = FAIL;
-
-	zbx_free(sql);
-
-	return ret;
+	return dbconn_execute_multiple_query(db, query, field_name, ids, 0);
 }
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: execute query with large number of primary key matches in smaller *
+ *          batches, values will be passed as strings                         *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dbconn_execute_multiple_query_str(zbx_dbconn_t *db, const char *query, const char *field_name,
+		const zbx_vector_uint64_t *ids)
+{
+	return dbconn_execute_multiple_query(db, query, field_name, ids, 1);
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: selects next batch of ids from database                           *
+ *                                                                            *
+ ******************************************************************************/
+static int	db_large_query_select(zbx_db_large_query_t *query)
+{
+	int	values_num, size = ZBX_DB_LARGE_QUERY_BATCH_SIZE;
+
+	switch (query->type)
+	{
+		case ZBX_DB_LARGE_QUERY_UI64:
+			values_num = query->ids.ui64->values_num;
+			break;
+		case ZBX_DB_LARGE_QUERY_STR:
+			values_num = query->ids.str->values_num;
+			break;
+	}
+
+	if (query->offset >= values_num)
+		return FAIL;
+
+	if (NULL != query->result)
+	{
+		zbx_db_free_result(query->result);
+		query->result = NULL;
+	}
+
+	if (query->offset + size > values_num)
+		size = values_num - query->offset;
+
+	*query->sql_offset = query->sql_reset;
+
+	switch (query->type)
+	{
+		case ZBX_DB_LARGE_QUERY_UI64:
+			zbx_db_add_condition_alloc(query->sql, query->sql_alloc, query->sql_offset, query->field,
+					query->ids.ui64->values + query->offset, size);
+			break;
+		case ZBX_DB_LARGE_QUERY_STR:
+			zbx_db_add_str_condition_alloc(query->sql, query->sql_alloc, query->sql_offset, query->field,
+					(const char * const *)&query->ids.str->values[query->offset], size);
+			break;
+	}
+
+	if (NULL != query->suffix)
+		zbx_strcpy_alloc(query->sql, query->sql_alloc, query->sql_offset, query->suffix);
+
+	query->offset += size;
+	query->result = dbconn_select(query->db, "%s", *query->sql);
+
+	return SUCCEED;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: prepare large SQL query                                           *
+ *                                                                            *
+ ******************************************************************************/
+static void	db_large_query_prepare(zbx_db_large_query_t *query, zbx_dbconn_t *db, char **sql, size_t *sql_alloc,
+		size_t *sql_offset, const char *field)
+{
+	query->db = db;
+	query->field = field;
+	query->sql = sql;
+	query->sql_alloc = sql_alloc;
+	query->sql_offset = sql_offset;
+	query->sql_reset = *sql_offset;
+	query->offset = 0;
+	query->result = NULL;
+	query->suffix = NULL;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: prepare large SQL query with uint based IDs                       *
+ *                                                                            *
+ * Parameters: query      - [IN] large query object                           *
+ *             db         - [IN] database connection object                   *
+ *             sql        - [IN/OUT] first part of the query, can be modified *
+ *                              or reallocated                                *
+ *             sql_alloc  - [IN/OUT] size of allocated SQL string             *
+ *             sql_offset - [IN/OUT] length of the SQL string                 *
+ *             field      - [IN] ID field name                                *
+ *             ids        - [IN] vector of IDs                                *
+ *                                                                            *
+ * Comments: Large query object 'borrows' the SQL buffer with the query part, *
+ *           meaning:                                                         *
+ *             - caller must not free/modify this SQL buffer while the        *
+ *               prepared large query object is being used                    *
+ *             - caller must free this SQL buffer afterwards - it's not freed *
+ *               when large query object is cleared.                          *
+ *                                                                            *
+ ******************************************************************************/
+void	zbx_dbconn_large_query_prepare_uint(zbx_db_large_query_t *query, zbx_dbconn_t *db, char **sql,
+		size_t *sql_alloc, size_t *sql_offset, const char *field, const zbx_vector_uint64_t *ids)
+{
+	query->type = ZBX_DB_LARGE_QUERY_UI64;
+	query->ids.ui64 = ids;
+
+	db_large_query_prepare(query, db, sql, sql_alloc, sql_offset, field);
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: prepare large SQL query with string based IDs                     *
+ *                                                                            *
+ * Parameters: query      - [IN] large query object                           *
+ *             db         - [IN] database connection object                   *
+ *             sql        - [IN/OUT] first part of the query, can be modified *
+ *                              or reallocated                                *
+ *             sql_alloc  - [IN/OUT] size of allocated SQL string             *
+ *             sql_offset - [IN/OUT] length of the SQL string                 *
+ *             field      - [IN] ID field name                                *
+ *             ids        - [IN] vector of IDs                                *
+ *                                                                            *
+ * Comments: Large query object 'borrows' the SQL buffer with the query part, *
+ *           meaning:                                                         *
+ *             - caller must not free/modify this SQL buffer while the        *
+ *               prepared large query object is being used                    *
+ *             - caller must free this SQL buffer afterwards - it's not freed *
+ *               when large query object is cleared.                          *
+ *                                                                            *
+ ******************************************************************************/
+void	zbx_dbconn_large_query_prepare_str(zbx_db_large_query_t *query, zbx_dbconn_t *db, char **sql, size_t *sql_alloc,
+		size_t *sql_offset, const char *field, const zbx_vector_str_t *ids)
+{
+	query->type = ZBX_DB_LARGE_QUERY_STR;
+	query->ids.str = ids;
+
+	db_large_query_prepare(query, db, sql, sql_alloc, sql_offset, field);
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: fetch next row from large SQL query                               *
+ *                                                                            *
+ * Parameters: query      - [IN] large query object                           *
+ *                                                                            *
+ * Return value: database row or NULL if all rows are fetched                 *
+ *                                                                            *
+ * Comments: When all rows of the current batch are fetched this function     *
+ *           will automatically select next batch and fetch next row until    *
+ *           all batches are fetched.                                         *
+ *                                                                            *
+ ******************************************************************************/
+zbx_db_row_t	zbx_db_large_query_fetch(zbx_db_large_query_t *query)
+{
+	zbx_db_row_t	row;
+	int		values_num;
+
+	if (NULL == query->db)
+		return NULL;
+
+	switch (query->type)
+	{
+		case ZBX_DB_LARGE_QUERY_UI64:
+			values_num = query->ids.ui64->values_num;
+			break;
+		case ZBX_DB_LARGE_QUERY_STR:
+			values_num = query->ids.str->values_num;
+			break;
+	}
+
+	while (NULL == (row = zbx_db_fetch(query->result)) && query->offset < values_num)
+	{
+		if (SUCCEED != db_large_query_select(query))
+			return NULL;
+	}
+
+	return row;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: clear large SQL query                                             *
+ *                                                                            *
+ ******************************************************************************/
+void	zbx_db_large_query_clear(zbx_db_large_query_t *query)
+{
+	zbx_db_free_result(query->result);
+	zbx_free(query->suffix);
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: set SQL statement to be appended to each batch                    *
+ *                                                                            *
+ * Parameters: query      - [IN] large query object                           *
+ *             sql        - [IN] SQL statement to append                      *
+ *                                                                            *
+ ******************************************************************************/
+void	zbx_dbconn_large_query_append_sql(zbx_db_large_query_t *query, const char *sql)
+{
+	query->suffix = zbx_strdup(NULL, sql);
+}
+
+

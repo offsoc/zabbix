@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -174,7 +174,7 @@ static void	mock_read_steps(zbx_vector_mock_step_t *steps, zbx_mock_handle_t hst
 		um_mock_cache_init(&step->mock_cache, hconfig);
 		um_mock_cache_diff(mock_cache_last, &step->mock_cache, &gmacros, &hmacros, &htmpls);
 		config->um_cache = step->cache = um_cache_sync(config->um_cache, 0, &gmacros, &hmacros, &htmpls,
-				&config_vault, get_program_type());
+				&config_vault);
 
 		mock_dbsync_clear(&gmacros);
 		mock_dbsync_clear(&hmacros);

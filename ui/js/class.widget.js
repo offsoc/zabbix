@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -74,7 +74,18 @@ class CWidget extends CWidgetBase {
 	}
 
 	/**
-	 * Set widget to editing mode. This is one-way action. Be aware that the widget may not be in the active state.
+	 * Take action when references to the widget have changed.
+	 *
+	 * @see CWidgetBase.isReferred
+	 *
+	 * Possible widget state: WIDGET_STATE_ACTIVE.
+	 */
+	onReferredUpdate() {
+	}
+
+	/**
+	 * Set widget to dashboard editing mode. This is one-way action. Be aware that the widget may not be in the active
+	 * state.
 	 *
 	 * Possible widget state: WIDGET_STATE_INITIAL, WIDGET_STATE_ACTIVE, WIDGET_STATE_INACTIVE.
 	 */

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -17,10 +17,13 @@ class CWidgetIterator extends CWidget {
 
 	#unique_id_index = 0;
 
+	#ready_callback = () => {};
+
 	onInitialize() {
 		this._css_classes = {
 			...this._css_classes,
 			actions: 'dashboard-grid-iterator-actions',
+			controls: 'dashboard-grid-iterator-controls',
 			container: 'dashboard-grid-iterator-container',
 			contents: 'dashboard-grid-iterator-contents',
 			messages: 'dashboard-grid-iterator-messages',
@@ -34,6 +37,7 @@ class CWidgetIterator extends CWidget {
 		};
 
 		this._widgets = new Map();
+		this._widgets_data = new Map();
 		this._placeholders = [];
 
 		this._grid_pos = [];
@@ -48,6 +52,25 @@ class CWidgetIterator extends CWidget {
 	onStart() {
 		this._events = {
 			...this._events,
+
+			widgetReady: e => {
+				const widget = e.detail.target;
+
+				this._widgets_data.get(widget.getWidgetId()).is_ready = true;
+
+				let is_ready = true;
+
+				for (const data of this._widgets_data.values()) {
+					if (!data.is_ready) {
+						is_ready = false;
+						break;
+					}
+				}
+
+				if (is_ready) {
+					this.#ready_callback();
+				}
+			},
 
 			widgetEnter: e => {
 				const widget = e.detail.target;
@@ -110,6 +133,18 @@ class CWidgetIterator extends CWidget {
 		this._target.removeEventListener('mousemove', this._events.iteratorEnter);
 		this._button_previous_page.removeEventListener('click', this._events.previousPageClick);
 		this._button_next_page.removeEventListener('click', this._events.nextPageClick);
+	}
+
+	promiseReady() {
+		return new Promise(resolve => {
+			const parent_ready_promise = super.promiseReady();
+
+			this.#ready_callback = () => resolve(parent_ready_promise);
+
+			if (this._widgets.size === 0) {
+				resolve(parent_ready_promise);
+			}
+		});
 	}
 
 	getNumHeaderLines() {
@@ -323,6 +358,7 @@ class CWidgetIterator extends CWidget {
 	_addWidget(data) {
 		const widget = this._createWidget(data);
 
+		widget.on(CWidgetBase.EVENT_READY, this._events.widgetReady);
 		widget.start();
 
 		this._body.append(widget.getView());
@@ -330,6 +366,7 @@ class CWidgetIterator extends CWidget {
 		this._truncateWidget(widget);
 
 		this._widgets.set(data.widgetid, widget);
+		this._widgets_data.set(data.widgetid, {is_ready: false});
 
 		return widget;
 	}
@@ -344,7 +381,10 @@ class CWidgetIterator extends CWidget {
 			widgetid: data.widgetid,
 			is_new: false,
 			rf_rate: 0,
-			dashboard: this._dashboard,
+			dashboard: {
+				templateid: null,
+				dashboardid: null
+			},
 			dashboard_page: this._dashboard_page,
 			cell_width: this._cell_width,
 			cell_height: this._cell_height,
@@ -364,9 +404,11 @@ class CWidgetIterator extends CWidget {
 		this._body.removeChild(widget.getView());
 
 		this._removeWidgetEventListeners(widget);
+		widget.off(CWidgetBase.EVENT_READY, this._events.widgetReady);
 		widget.destroy();
 
 		this._widgets.delete(widgetid);
+		this._widgets_data.delete(widgetid);
 	}
 
 	_updateWidget(widget) {
@@ -495,7 +537,7 @@ class CWidgetIterator extends CWidget {
 		this._target.style.minHeight = null;
 
 		this._pager = document.createElement('div');
-		this._pager.classList.add('dashboard-grid-iterator-pager');
+		this._pager.classList.add(this._css_classes.controls, 'dashboard-grid-iterator-pager');
 
 		this._button_previous_page = document.createElement('button');
 		this._button_previous_page.type = 'button';

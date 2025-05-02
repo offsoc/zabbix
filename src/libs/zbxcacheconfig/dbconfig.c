@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -45,7 +45,6 @@
 #include "zbxcachehistory.h"
 #include "zbxconnector.h"
 #include "zbx_discoverer_constants.h"
-#include "zbxdbschema.h"
 #include "zbxeval.h"
 #include "zbxipcservice.h"
 #include "zbxjson.h"
@@ -54,7 +53,6 @@
 #include "zbxcomms.h"
 #include "zbxdb.h"
 #include "zbxmutexs.h"
-#include "zbxautoreg.h"
 #include "zbxpgservice.h"
 #include "zbxinterface.h"
 #include "zbxhistory.h"
@@ -71,6 +69,27 @@ ZBX_PTR_VECTOR_IMPL(corr_operation_ptr, zbx_corr_operation_t *)
 ZBX_PTR_VECTOR_IMPL(correlation_ptr, zbx_correlation_t *)
 ZBX_PTR_VECTOR_IMPL(trigger_dep_ptr, zbx_trigger_dep_t *)
 ZBX_PTR_VECTOR_IMPL(trigger_timer_ptr, zbx_trigger_timer_t *)
+
+ZBX_VECTOR_IMPL(dc_item_tag, zbx_dc_item_tag_t)
+
+typedef struct
+{
+	zbx_uint64_t	itemtagid;
+	zbx_uint64_t	itemid;
+}
+zbx_dc_item_tag_link;
+
+typedef enum
+{
+	ZBX_DB_SYNC_STATUS_UNLOCKED,
+	ZBX_DB_SYNC_STATUS_LOCKED
+}zbx_db_sync_status;
+
+typedef struct
+{
+	zbx_hashset_t	item_tag_links;
+}
+zbx_dc_config_private_t;
 
 void	zbx_corr_operation_free(zbx_corr_operation_t *corr_operation)
 {
@@ -117,7 +136,29 @@ int	zbx_trigger_dep_compare_func(const void *d1, const void *d2)
 	return 0;
 }
 
-int	sync_in_progress = 0;
+/* item reference hashset support */
+static zbx_hash_t	dc_item_ref_hash(const void *data)
+{
+	const ZBX_DC_ITEM_REF	*ref = (const ZBX_DC_ITEM_REF *)data;
+
+	return ZBX_DEFAULT_UINT64_HASH_FUNC(&ref->item->itemid);
+}
+
+static int	dc_item_ref_compare(const void *d1, const void *d2)
+{
+	const ZBX_DC_ITEM_REF	*ref1 = (const ZBX_DC_ITEM_REF *)d1;
+	const ZBX_DC_ITEM_REF	*ref2 = (const ZBX_DC_ITEM_REF *)d2;
+
+	ZBX_RETURN_IF_NOT_EQUAL(ref1->item->itemid, ref2->item->itemid);
+	return 0;
+}
+
+static int	sync_in_progress = 0;
+
+int	zbx_get_sync_in_progress(void)
+{
+	return sync_in_progress;
+}
 
 #define START_SYNC	do { WRLOCK_CACHE_CONFIG_HISTORY; WRLOCK_CACHE; sync_in_progress = 1; } while(0)
 #define FINISH_SYNC	do { sync_in_progress = 0; UNLOCK_CACHE; UNLOCK_CACHE_CONFIG_HISTORY; } while(0)
@@ -174,7 +215,8 @@ void	zbx_proxy_counter_ptr_free(zbx_proxy_counter_t *proxy_counter)
 static zbx_get_program_type_f	get_program_type_cb = NULL;
 static zbx_get_config_forks_f	get_config_forks_cb = NULL;
 
-zbx_dc_config_t	*config = NULL;
+zbx_dc_config_t		*config = NULL;
+zbx_dc_config_private_t	config_private;
 
 zbx_dc_config_t	*get_dc_config(void)
 {
@@ -186,41 +228,18 @@ void	set_dc_config(zbx_dc_config_t *in)
 	config = in;
 }
 
-zbx_rwlock_t		config_lock = ZBX_RWLOCK_NULL;
+static zbx_rwlock_t	config_lock = ZBX_RWLOCK_NULL;
 
-void	rdlock_cache(void)
+zbx_rwlock_t	zbx_get_config_lock(void)
 {
-	if (0 == sync_in_progress)
-		zbx_rwlock_rdlock(config_lock);
+	return config_lock;
 }
 
-void	wrlock_cache(void)
-{
-	if (0 == sync_in_progress)
-		zbx_rwlock_wrlock(config_lock);
-}
+static zbx_rwlock_t	config_history_lock = ZBX_RWLOCK_NULL;
 
-void	unlock_cache(void)
+zbx_rwlock_t	zbx_get_config_history_lock(void)
 {
-	if (0 == sync_in_progress)
-		zbx_rwlock_unlock(config_lock);
-}
-
-zbx_rwlock_t		config_history_lock = ZBX_RWLOCK_NULL;
-
-void	rdlock_cache_config_history(void)
-{
-	zbx_rwlock_rdlock(config_history_lock);
-}
-
-void	wrlock_cache_config_history(void)
-{
-	zbx_rwlock_wrlock(config_history_lock);
-}
-
-void	unlock_cache_config_history(void)
-{
-	zbx_rwlock_unlock(config_history_lock);
+	return config_history_lock;
 }
 
 static zbx_shmem_info_t	*config_mem;
@@ -439,7 +458,8 @@ static unsigned char	poller_by_item(unsigned char type, const char *key, unsigne
 		case ITEM_TYPE_SIMPLE:
 			if (SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPING_KEY) ||
 					SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGSEC_KEY) ||
-					SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGLOSS_KEY))
+					SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGLOSS_KEY) ||
+					SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGRETRY_KEY))
 			{
 				if (0 == get_config_forks_cb(ZBX_PROCESS_TYPE_PINGER))
 					break;
@@ -581,7 +601,8 @@ static zbx_uint64_t	get_item_nextcheck_seed(ZBX_DC_ITEM *item, zbx_uint64_t inte
 	{
 		if (SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPING_KEY) ||
 				SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGSEC_KEY) ||
-				SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGLOSS_KEY))
+				SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGLOSS_KEY) ||
+				SUCCEED == cmp_key_id(key, ZBX_SERVER_ICMPPINGRETRY_KEY))
 		{
 			return interfaceid;
 		}
@@ -936,7 +957,7 @@ const char	*dc_strpool_acquire(const char *str)
 
 int	dc_strpool_replace(int found, const char **curr, const char *new_str)
 {
-	if (1 == found)
+	if (1 == found && NULL != *curr)
 	{
 		if (0 == strcmp(*curr, new_str))
 			return FAIL;
@@ -1003,414 +1024,6 @@ static void	DCupdate_proxy_queue(ZBX_DC_PROXY *proxy)
 	}
 	else
 		zbx_binary_heap_update_direct(&config->pqueue, &elem);
-}
-
-/******************************************************************************
- *                                                                            *
- * Purpose: sets and validates global housekeeping option                     *
- *                                                                            *
- * Parameters: value     - [OUT] housekeeping setting                         *
- *             non_zero  - [IN] 0 if value is allowed to be zero, 1 otherwise *
- *             value_min - [IN] minimal acceptable setting value              *
- *             value_raw - [IN] setting value to validate                     *
- *                                                                            *
- ******************************************************************************/
-static int	set_hk_opt(int *value, int non_zero, int value_min, const char *value_raw, zbx_uint64_t revision)
-{
-	int	value_int;
-
-	if (SUCCEED != zbx_is_time_suffix(value_raw, &value_int, ZBX_LENGTH_UNLIMITED))
-		return FAIL;
-
-	if (0 != non_zero && 0 == value_int)
-		return FAIL;
-
-	if (0 != *value && (value_min > value_int || ZBX_HK_PERIOD_MAX < value_int))
-		return FAIL;
-
-	if (*value != value_int)
-	{
-		*value = value_int;
-		config->revision.config_table = revision;
-	}
-
-	return SUCCEED;
-}
-
-static int	DCsync_config(zbx_dbsync_t *sync, zbx_uint64_t revision, int *flags)
-{
-	const zbx_db_table_t	*config_table;
-
-	/* sync with zbx_dbsync_compare_config() */
-	const char	*selected_fields[] = {"discovery_groupid", "snmptrap_logging",
-					"severity_name_0", "severity_name_1", "severity_name_2", "severity_name_3",
-					"severity_name_4", "severity_name_5", "hk_events_mode", "hk_events_trigger",
-					"hk_events_internal", "hk_events_discovery", "hk_events_autoreg",
-					"hk_services_mode", "hk_services", "hk_audit_mode", "hk_audit",
-					"hk_sessions_mode", "hk_sessions", "hk_history_mode", "hk_history_global",
-					"hk_history", "hk_trends_mode", "hk_trends_global", "hk_trends",
-					"default_inventory_mode", "db_extension", "autoreg_tls_accept",
-					"compression_status", "compress_older", "instanceid",
-					"default_timezone", "hk_events_service", "auditlog_enabled",
-					"timeout_zabbix_agent", "timeout_simple_check", "timeout_snmp_agent",
-					"timeout_external_check", "timeout_db_monitor", "timeout_http_agent",
-					"timeout_ssh_agent", "timeout_telnet_agent", "timeout_script", "auditlog_mode",
-					"timeout_browser"};
-
-	const char	*row[ARRSIZE(selected_fields)];
-	size_t		i;
-	int		j, found = 1, ret, value_int;
-	unsigned char	value_uchar;
-	char		**db_row;
-	zbx_uint64_t	rowid, value_uint64;
-	unsigned char	tag;
-
-	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
-
-	zbx_dcsync_sync_start(sync, dbconfig_used_size());
-
-	*flags = 0;
-
-	if (NULL == config->config)
-	{
-		found = 0;
-		config->config = (zbx_dc_config_table_t *)__config_shmem_malloc_func(NULL, sizeof(zbx_dc_config_table_t));
-		memset(config->config, 0, sizeof(zbx_dc_config_table_t));
-	}
-
-	if (SUCCEED != (ret = zbx_dbsync_next(sync, &rowid, &db_row, &tag)))
-	{
-		/* load default config data */
-
-		if (0 != (get_program_type_cb() & ZBX_PROGRAM_TYPE_SERVER))
-			zabbix_log(LOG_LEVEL_ERR, "no records in table 'config'");
-
-		config_table = zbx_db_get_table("config");
-
-		for (i = 0; i < ARRSIZE(selected_fields); i++)
-			row[i] = zbx_db_get_field(config_table, selected_fields[i])->default_value;
-	}
-	else
-	{
-		for (i = 0; i < ARRSIZE(selected_fields); i++)
-			row[i] = db_row[i];
-	}
-
-	/* store the config data */
-
-	if (NULL != row[0])
-		ZBX_STR2UINT64(value_uint64, row[0]);
-	else
-		value_uint64 = ZBX_DISCOVERY_GROUPID_UNDEFINED;
-
-	if (config->config->discovery_groupid != value_uint64)
-	{
-		config->config->discovery_groupid = value_uint64;
-		config->revision.config_table = revision;
-	}
-
-	ZBX_STR2UCHAR(value_uchar, row[1]);
-	if (config->config->snmptrap_logging != value_uchar)
-	{
-		config->config->snmptrap_logging = value_uchar;
-		config->revision.config_table = revision;
-	}
-
-	if (config->config->default_inventory_mode != (value_int = atoi(row[25])))
-	{
-		config->config->default_inventory_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->db.extension || 0 != strcmp(config->config->db.extension, row[26]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->db.extension, row[26]);
-		config->revision.config_table = revision;
-	}
-
-	ZBX_STR2UCHAR(value_uchar, row[27]);
-	if (config->config->autoreg_tls_accept != value_uchar)
-	{
-		config->config->autoreg_tls_accept = value_uchar;
-		config->revision.config_table = revision;
-	}
-
-	ZBX_STR2UCHAR(value_uchar, row[28]);
-	if (config->config->db.history_compression_status != value_uchar)
-	{
-		config->config->db.history_compression_status = value_uchar;
-		config->revision.config_table = revision;
-	}
-
-	if (SUCCEED != zbx_is_time_suffix(row[29], &value_int, ZBX_LENGTH_UNLIMITED))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "invalid history compression age: %s", row[29]);
-		value_int = 0;
-	}
-
-	if (config->config->db.history_compress_older != value_int)
-	{
-		config->config->db.history_compress_older = value_int;
-		config->revision.config_table = revision;
-	}
-
-	for (j = 0; TRIGGER_SEVERITY_COUNT > j; j++)
-	{
-		if (NULL == config->config->severity_name[j] || 0 != strcmp(config->config->severity_name[j], row[2 + j]))
-		{
-			dc_strpool_replace(found, (const char **)&config->config->severity_name[j], row[2 + j]);
-			config->revision.config_table = revision;
-		}
-	}
-
-	/* instance id cannot be changed - update it only at first sync to avoid read locks later */
-	if (0 == found)
-		dc_strpool_replace(found, &config->config->instanceid, row[30]);
-
-#if TRIGGER_SEVERITY_COUNT != 6
-#	error "row indexes below are based on assumption of six trigger severity levels"
-#endif
-
-	/* read housekeeper configuration */
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[8])) &&
-			(SUCCEED != set_hk_opt(&config->config->hk.events_trigger, 1, SEC_PER_DAY, row[9], revision) ||
-			SUCCEED != set_hk_opt(&config->config->hk.events_internal, 1, SEC_PER_DAY, row[10], revision) ||
-			SUCCEED != set_hk_opt(&config->config->hk.events_discovery, 1, SEC_PER_DAY, row[11], revision) ||
-			SUCCEED != set_hk_opt(&config->config->hk.events_autoreg, 1, SEC_PER_DAY, row[12], revision) ||
-			SUCCEED != set_hk_opt(&config->config->hk.events_service, 1, SEC_PER_DAY, row[32], revision)))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "trigger, internal, network discovery and auto-registration data"
-				" housekeeping will be disabled due to invalid settings");
-		value_int = ZBX_HK_OPTION_DISABLED;
-	}
-	if (config->config->hk.events_mode != value_int)
-	{
-		config->config->hk.events_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[13])) &&
-			SUCCEED != set_hk_opt(&config->config->hk.services, 1, SEC_PER_DAY, row[14], revision))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "IT services data housekeeping will be disabled due to invalid"
-				" settings");
-		value_int = ZBX_HK_OPTION_DISABLED;
-	}
-	if (config->config->hk.services_mode != value_int)
-	{
-		config->config->hk.services_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[15])) &&
-			SUCCEED != set_hk_opt(&config->config->hk.audit, 1, SEC_PER_DAY, row[16], revision))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "audit data housekeeping will be disabled due to invalid"
-				" settings");
-		value_int = ZBX_HK_OPTION_DISABLED;
-	}
-	if (config->config->hk.audit_mode != value_int)
-	{
-		config->config->hk.audit_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-#ifdef HAVE_POSTGRESQL
-	if (ZBX_HK_MODE_DISABLED != config->config->hk.audit_mode &&
-			0 == zbx_strcmp_null(config->config->db.extension, ZBX_DB_EXTENSION_TIMESCALEDB))
-	{
-		if (ZBX_HK_MODE_PARTITION != config->config->hk.audit_mode)
-		{
-			config->config->hk.audit_mode = ZBX_HK_MODE_PARTITION;
-			config->revision.config_table = revision;
-		}
-	}
-#endif
-
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[17])) &&
-			SUCCEED != set_hk_opt(&config->config->hk.sessions, 1, SEC_PER_DAY, row[18], revision))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "user sessions data housekeeping will be disabled due to invalid"
-				" settings");
-		value_int = ZBX_HK_OPTION_DISABLED;
-	}
-	if (config->config->hk.sessions_mode != value_int)
-	{
-		config->config->hk.sessions_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (config->config->hk.history_mode != (value_int = atoi(row[19])))
-	{
-		config->config->hk.history_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[20])) &&
-			SUCCEED != set_hk_opt(&config->config->hk.history, 0, ZBX_HK_HISTORY_MIN, row[21], revision))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "history data housekeeping will be disabled and all items will"
-				" store their history due to invalid global override settings");
-		if (ZBX_HK_MODE_DISABLED != config->config->hk.history_mode)
-		{
-			config->config->hk.history_mode = ZBX_HK_MODE_DISABLED;
-			config->revision.config_table = revision;
-		}
-
-		if (1 != config->config->hk.history)
-		{
-			config->config->hk.history = 1;	/* just enough to make 0 == items[i].history condition fail */
-			config->revision.config_table = revision;
-		}
-	}
-	if (config->config->hk.history_global != value_int)
-	{
-		config->config->hk.history_global = value_int;
-		config->revision.config_table = revision;
-	}
-
-#ifdef HAVE_POSTGRESQL
-	if (ZBX_HK_MODE_DISABLED != config->config->hk.history_mode &&
-			ZBX_HK_OPTION_ENABLED == config->config->hk.history_global &&
-			0 == zbx_strcmp_null(config->config->db.extension, ZBX_DB_EXTENSION_TIMESCALEDB))
-	{
-		if (ZBX_HK_MODE_PARTITION != config->config->hk.history_mode)
-		{
-			config->config->hk.history_mode = ZBX_HK_MODE_PARTITION;
-			config->revision.config_table = revision;
-		}
-	}
-#endif
-
-	if (config->config->hk.trends_mode != (value_int = atoi(row[22])))
-	{
-		config->config->hk.trends_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (ZBX_HK_OPTION_ENABLED == (value_int = atoi(row[23])) &&
-			SUCCEED != set_hk_opt(&config->config->hk.trends, 0, ZBX_HK_TRENDS_MIN, row[24], revision))
-	{
-		zabbix_log(LOG_LEVEL_WARNING, "trends data housekeeping will be disabled and all numeric items"
-				" will store their history due to invalid global override settings");
-		if (ZBX_HK_MODE_DISABLED != config->config->hk.trends_mode)
-		{
-			config->config->hk.trends_mode = ZBX_HK_MODE_DISABLED;
-			config->revision.config_table = revision;
-		}
-		if (1 != config->config->hk.trends)
-		{
-			config->config->hk.trends = 1;	/* just enough to make 0 == items[i].trends condition fail */
-			config->revision.config_table = revision;
-		}
-	}
-	if (config->config->hk.trends_global != value_int)
-	{
-		config->config->hk.trends_global = value_int;
-		config->revision.config_table = revision;
-	}
-
-#ifdef HAVE_POSTGRESQL
-	if (ZBX_HK_MODE_DISABLED != config->config->hk.trends_mode &&
-			ZBX_HK_OPTION_ENABLED == config->config->hk.trends_global &&
-			0 == zbx_strcmp_null(config->config->db.extension, ZBX_DB_EXTENSION_TIMESCALEDB))
-	{
-		if (ZBX_HK_MODE_PARTITION != config->config->hk.trends_mode)
-		{
-			config->config->hk.trends_mode = ZBX_HK_MODE_PARTITION;
-			config->revision.config_table = revision;
-		}
-	}
-#endif
-
-	if (NULL == config->config->default_timezone || 0 != strcmp(config->config->default_timezone, row[31]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->default_timezone, row[31]);
-		config->revision.config_table = revision;
-	}
-
-	if (config->config->auditlog_enabled != (value_int = atoi(row[33])))
-	{
-		config->config->auditlog_enabled = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.agent || 0 != strcmp(config->config->item_timeouts.agent, row[34]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.agent, row[34]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.simple || 0 != strcmp(config->config->item_timeouts.simple, row[35]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.simple, row[35]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.snmp || 0 != strcmp(config->config->item_timeouts.snmp, row[36]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.snmp, row[36]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.external || 0 != strcmp(config->config->item_timeouts.external,
-			row[37]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.external, row[37]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.odbc || 0 != strcmp(config->config->item_timeouts.odbc, row[38]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.odbc, row[38]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.http || 0 != strcmp(config->config->item_timeouts.http, row[39]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.http, row[39]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.ssh || 0 != strcmp(config->config->item_timeouts.ssh, row[40]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.ssh, row[40]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.telnet || 0 != strcmp(config->config->item_timeouts.telnet, row[41]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.telnet, row[41]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.script || 0 != strcmp(config->config->item_timeouts.script, row[42]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.script, row[42]);
-		config->revision.config_table = revision;
-	}
-
-	if (NULL == config->config->item_timeouts.browser || 0 != strcmp(config->config->item_timeouts.browser,
-			row[44]))
-	{
-		dc_strpool_replace(found, (const char **)&config->config->item_timeouts.browser, row[44]);
-		config->revision.config_table = revision;
-	}
-
-	if (config->config->auditlog_mode != (value_int = atoi(row[43])))
-	{
-		config->config->auditlog_mode = value_int;
-		config->revision.config_table = revision;
-	}
-
-	if (SUCCEED == ret && SUCCEED == zbx_dbsync_next(sync, &rowid, &db_row, &tag))	/* table must have */
-		zabbix_log(LOG_LEVEL_ERR, "table 'config' has multiple records");	/* only one record */
-
-	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
-
-	zbx_dcsync_sync_end(sync, dbconfig_used_size());
-
-	return SUCCEED;
 }
 
 /******************************************************************************
@@ -1937,8 +1550,10 @@ static void	DCsync_hosts(zbx_dbsync_t *sync, zbx_uint64_t revision, zbx_vector_u
 
 			zbx_vector_dc_httptest_ptr_create_ext(&host->httptests, __config_shmem_malloc_func,
 					__config_shmem_realloc_func, __config_shmem_free_func);
-			zbx_vector_dc_item_ptr_create_ext(&host->items, __config_shmem_malloc_func,
-					__config_shmem_realloc_func, __config_shmem_free_func);
+
+			zbx_hashset_create_ext(&host->items, 0, dc_item_ref_hash, dc_item_ref_compare, NULL,
+					__config_shmem_malloc_func, __config_shmem_realloc_func,
+					__config_shmem_free_func);
 		}
 		else
 		{
@@ -2099,7 +1714,7 @@ static void	DCsync_hosts(zbx_dbsync_t *sync, zbx_uint64_t revision, zbx_vector_u
 		dc_psk_unlink(host->tls_dc_psk);
 #endif
 		zbx_vector_ptr_destroy(&host->interfaces_v);
-		zbx_vector_dc_item_ptr_destroy(&host->items);
+		zbx_hashset_destroy(&host->items);
 		zbx_hashset_remove_direct(&config->hosts, host);
 
 		zbx_vector_dc_httptest_ptr_destroy(&host->httptests);
@@ -2237,16 +1852,21 @@ void	zbx_dc_sync_kvs_paths(const struct zbx_json_parse *jp_kvs_paths, const zbx_
 				zbx_free(error);
 				continue;
 			}
-
 		}
-		else if (FAIL == zbx_vault_kvs_get(dc_kvs_path->path, &kvs, config_vault, config_source_ip,
+		else if (FAIL == zbx_vault_get_kvs(dc_kvs_path->path, &kvs, config_vault, config_source_ip,
 				config_ssl_ca_location, config_ssl_cert_location, config_ssl_key_location, &error))
 		{
-			zabbix_log(LOG_LEVEL_WARNING, "cannot get secrets for path \"%s\": %s", dc_kvs_path->path,
-					error);
+			if (NULL == dc_kvs_path->last_error || 0 != strcmp(dc_kvs_path->last_error, error))
+			{
+				zabbix_log(LOG_LEVEL_WARNING, "cannot get secrets for path \"%s\": %s",
+						dc_kvs_path->path, error);
+			}
+			dc_strpool_replace(NULL != dc_kvs_path->last_error ? 1 : 0, &dc_kvs_path->last_error, error);
 			zbx_free(error);
 			continue;
 		}
+		else if (NULL != dc_kvs_path->last_error)
+			dc_strpool_release(dc_kvs_path->last_error);
 
 		zbx_hashset_iter_reset(&dc_kvs_path->kvs, &iter);
 		while (NULL != (dc_kv = (zbx_dc_kv_t *)zbx_hashset_iter_next(&iter)))
@@ -2949,7 +2569,7 @@ static void	dc_interface_snmpitems_remove(ZBX_DC_ITEM *item)
 
 static void	dc_masteritem_free(ZBX_DC_MASTERITEM *masteritem)
 {
-	zbx_vector_uint64_pair_destroy(&masteritem->dep_itemids);
+	zbx_hashset_destroy(&masteritem->dep_itemids);
 	__config_shmem_free_func(masteritem);
 }
 
@@ -2966,8 +2586,6 @@ static void	dc_masteritem_remove_depitem(zbx_uint64_t master_itemid, zbx_uint64_
 {
 	ZBX_DC_MASTERITEM	*masteritem;
 	ZBX_DC_ITEM		*item;
-	int			index;
-	zbx_uint64_pair_t	pair;
 
 	if (NULL == (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, &master_itemid)))
 		return;
@@ -2975,16 +2593,9 @@ static void	dc_masteritem_remove_depitem(zbx_uint64_t master_itemid, zbx_uint64_
 	if (NULL == (masteritem = item->master_item))
 		return;
 
-	pair.first = dep_itemid;
-	if (FAIL == (index = zbx_vector_uint64_pair_search(&masteritem->dep_itemids, pair,
-			ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
-	{
-		return;
-	}
+	zbx_hashset_remove(&masteritem->dep_itemids, &dep_itemid);
 
-	zbx_vector_uint64_pair_remove_noorder(&masteritem->dep_itemids, index);
-
-	if (0 == masteritem->dep_itemids.values_num)
+	if (0 == masteritem->dep_itemids.num_data)
 	{
 		dc_masteritem_free(item->master_item);
 		item->master_item = NULL;
@@ -3292,6 +2903,7 @@ static void	dc_item_type_update(int found, ZBX_DC_ITEM *item, zbx_item_type_t *o
 						sizeof(ZBX_DC_TRAPITEM));
 			}
 
+			zbx_trim_str_list(row[9], ',');
 			dc_strpool_replace(found, &item->itemtype.trapitem->trapper_hosts, row[9]);
 			break;
 		case ITEM_TYPE_SIMPLE:
@@ -3429,6 +3041,7 @@ static void	dc_item_type_update(int found, ZBX_DC_ITEM *item, zbx_item_type_t *o
 			item->itemtype.httpitem->authtype = (unsigned char)atoi(row[13]);
 			dc_strpool_replace(found, &item->itemtype.httpitem->username, row[14]);
 			dc_strpool_replace(found, &item->itemtype.httpitem->password, row[15]);
+			zbx_trim_str_list(row[9], ',');
 			dc_strpool_replace(found, &item->itemtype.httpitem->trapper_hosts, row[9]);
 			break;
 		case ITEM_TYPE_SNMP:
@@ -3632,7 +3245,7 @@ static void	process_zero_pollers_items(ZBX_DC_ITEM *item)
 	}
 }
 
-static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, zbx_synced_new_config_t synced,
+static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, zbx_synced_new_config_t synced,
 		zbx_vector_uint64_t *deleted_itemids, zbx_vector_dc_item_ptr_t *new_items)
 {
 	char			**row;
@@ -3641,7 +3254,7 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 
 	ZBX_DC_HOST		*host = NULL;
 
-	ZBX_DC_ITEM		*item;
+	ZBX_DC_ITEM		*item = NULL;
 	ZBX_DC_TEMPLATE_ITEM	*template_item;
 	ZBX_DC_ITEM		*depitem;
 	ZBX_DC_INTERFACE_ITEM	*interface_snmpitem;
@@ -3653,7 +3266,7 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 	time_t			now;
 	zbx_hashset_uniq_t	uniq = ZBX_HASHSET_UNIQ_FALSE;
 	unsigned char		status, type, value_type, old_poller_type, item_flags;
-	int			found, ret, i,  old_nextcheck;
+	int			found, ret, i, old_nextcheck, flags = 0;
 	zbx_uint64_t		itemid, hostid, interfaceid, templateid;
 	zbx_vector_ptr_t	dep_items;
 
@@ -3782,6 +3395,8 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 
 		if (0 == found)
 		{
+			ZBX_DC_ITEM_REF	ref_local = {.item = item};
+
 			item->triggers = NULL;
 			item->update_triggers = 0;
 			item->nextcheck = 0;
@@ -3798,10 +3413,10 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 			if (ZBX_SYNCED_NEW_CONFIG_YES == synced && 0 == host->proxyid)
 				flags |= ZBX_ITEM_NEW;
 
-			zbx_vector_ptr_create_ext(&item->tags, __config_shmem_malloc_func, __config_shmem_realloc_func,
-					__config_shmem_free_func);
+			zbx_vector_dc_item_tag_create_ext(&item->tags, __config_shmem_malloc_func,
+					__config_shmem_realloc_func, __config_shmem_free_func);
 
-			zbx_vector_dc_item_ptr_append(&host->items, item);
+			zbx_hashset_insert_ext(&host->items, &ref_local, sizeof(ref_local), 0, sizeof(ref_local), uniq);
 
 			item->preproc_item = NULL;
 			item->master_item = NULL;
@@ -3935,32 +3550,31 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 
 	for (i = 0; i < dep_items.values_num; i++)
 	{
-		zbx_uint64_pair_t	pair;
-
 		depitem = (ZBX_DC_ITEM *)dep_items.values[i];
 		dc_masteritem_remove_depitem(depitem->itemtype.depitem->last_master_itemid, depitem->itemid, revision);
 
-		if (NULL == (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items,
-				&depitem->itemtype.depitem->master_itemid)))
+		if (NULL == item || item->itemid != depitem->itemtype.depitem->master_itemid)
 		{
-			continue;
+			if (NULL == (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items,
+					&depitem->itemtype.depitem->master_itemid)))
+			{
+				continue;
+			}
 		}
-
-		pair.first = depitem->itemid;
-		pair.second = depitem->flags;
-
 		if (NULL == item->master_item)
 		{
 			item->master_item = (ZBX_DC_MASTERITEM *)__config_shmem_malloc_func(NULL,
 					sizeof(ZBX_DC_MASTERITEM));
 
-			zbx_vector_uint64_pair_create_ext(&item->master_item->dep_itemids, __config_shmem_malloc_func,
+			zbx_hashset_create_ext(&item->master_item->dep_itemids, 3, ZBX_DEFAULT_UINT64_HASH_FUNC,
+					ZBX_DEFAULT_UINT64_COMPARE_FUNC, NULL, __config_shmem_malloc_func,
 					__config_shmem_realloc_func, __config_shmem_free_func);
 		}
 
 		item->master_item->revision = revision;
 
-		zbx_vector_uint64_pair_append(&item->master_item->dep_itemids, pair);
+		zbx_hashset_insert_ext(&item->master_item->dep_itemids, &depitem->itemid, sizeof(depitem->itemid), 0,
+				sizeof(depitem->itemid), uniq);
 
 		/* Update master item revision for preprocessing configuration refresh.     */
 		/* No need to update host revision as it was already updated when dependent */
@@ -3990,13 +3604,10 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 
 		if (NULL != (host = (ZBX_DC_HOST *)zbx_hashset_search(&config->hosts, &item->hostid)))
 		{
-			dc_host_update_revision(host, revision);
+			ZBX_DC_ITEM_REF	ref_local = {.item = item};
 
-			if (FAIL != (i = zbx_vector_dc_item_ptr_search(&host->items, item,
-					ZBX_DEFAULT_PTR_COMPARE_FUNC)))
-			{
-				zbx_vector_dc_item_ptr_remove(&host->items, i);
-			}
+			zbx_hashset_remove(&host->items, &ref_local);
+			dc_host_update_revision(host, revision);
 		}
 
 		if (ITEM_STATUS_ACTIVE == item->status)
@@ -4064,7 +3675,13 @@ static void	DCsync_items(zbx_dbsync_t *sync, zbx_uint64_t revision, int flags, z
 		if (NULL != item->triggers)
 			config->items.mem_free_func(item->triggers);
 
-		zbx_vector_ptr_destroy(&item->tags);
+		for (i = 0; i < item->tags.values_num; i++)
+		{
+			dc_strpool_release(item->tags.values[i].tag);
+			dc_strpool_release(item->tags.values[i].value);
+		}
+
+		zbx_vector_dc_item_tag_destroy(&item->tags);
 
 		if (NULL != item->preproc_item)
 			dc_preprocitem_free(item->preproc_item);
@@ -4679,6 +4296,7 @@ static void	dc_schedule_trigger_timers(zbx_hashset_t *trend_queue, int now)
 	zbx_trigger_timer_t	*timer, *old;
 	zbx_timespec_t		ts;
 	zbx_hashset_iter_t	iter;
+	time_t			offset;
 
 	ts.ns = 0;
 
@@ -4687,6 +4305,12 @@ static void	dc_schedule_trigger_timers(zbx_hashset_t *trend_queue, int now)
 	{
 		if (ZBX_FUNCTION_TYPE_TIMER != function->type && ZBX_FUNCTION_TYPE_TRENDS != function->type)
 			continue;
+
+		/* schedule evaluation later to reduce server startup load */
+		if (NULL != trend_queue && ZBX_FUNCTION_TYPE_TIMER == function->type)
+			offset = SEC_PER_MIN;
+		else
+			offset = 0;
 
 		if (function->timer_revision == function->revision)
 			continue;
@@ -4717,15 +4341,22 @@ static void	dc_schedule_trigger_timers(zbx_hashset_t *trend_queue, int now)
 		}
 		else
 		{
-			if (0 == (ts.sec = (int)dc_function_calculate_nextcheck(NULL, timer, now, timer->triggerid)))
+			if (0 == (ts.sec = (int)dc_function_calculate_nextcheck(NULL, timer, now + offset,
+					timer->triggerid)))
 			{
 				dc_trigger_timer_free(timer);
 				function->timer_revision = 0;
 			}
 			else
-				dc_schedule_trigger_timer(timer, now, NULL, &ts);
+				dc_schedule_trigger_timer(timer, now + offset, NULL, &ts);
 		}
 	}
+
+	/* schedule evaluation later to reduce server startup load */
+	if (NULL != trend_queue)
+		offset = SEC_PER_MIN;
+	else
+		offset = 0;
 
 	zbx_hashset_iter_reset(&config->triggers, &iter);
 	while (NULL != (trigger = (ZBX_DC_TRIGGER *)zbx_hashset_iter_next(&iter)))
@@ -4745,13 +4376,13 @@ static void	dc_schedule_trigger_timers(zbx_hashset_t *trend_queue, int now)
 		if (NULL == (timer = dc_trigger_timer_create(trigger)))
 			continue;
 
-		if (0 == (ts.sec = (int)dc_function_calculate_nextcheck(NULL, timer, now, timer->triggerid)))
+		if (0 == (ts.sec = (int)dc_function_calculate_nextcheck(NULL, timer, now + offset, timer->triggerid)))
 		{
 			dc_trigger_timer_free(timer);
 			trigger->timer_revision = 0;
 		}
 		else
-			dc_schedule_trigger_timer(timer, now, NULL, &ts);
+			dc_schedule_trigger_timer(timer, now + offset, NULL, &ts);
 	}
 }
 
@@ -5819,24 +5450,26 @@ static void	DCsync_item_tags(zbx_dbsync_t *sync)
 	unsigned char		tag;
 	zbx_hashset_uniq_t	uniq = ZBX_HASHSET_UNIQ_FALSE;
 	int			found, ret, index;
-	zbx_uint64_t		itemid, itemtagid;
 	ZBX_DC_ITEM		*item;
-	zbx_dc_item_tag_t	*item_tag;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
 	zbx_dcsync_sync_start(sync, dbconfig_used_size());
 
-	if (0 == config->item_tags.num_slots)
+	if (0 == config_private.item_tag_links.num_slots)
 	{
 		int	row_num = zbx_dbsync_get_row_num(sync);
 
-		zbx_hashset_reserve(&config->item_tags, MAX(row_num, 100));
+		zbx_hashset_reserve(&config_private.item_tag_links, MAX(row_num, 100));
 		uniq = ZBX_HASHSET_UNIQ_TRUE;
 	}
 
 	while (SUCCEED == (ret = zbx_dbsync_next(sync, &rowid, &row, &tag)))
 	{
+		zbx_dc_item_tag_t	item_tag_local = {0};
+		zbx_dc_item_tag_link	*item_tag_link;
+		zbx_uint64_t		itemid;
+
 		/* removed rows will be always added at the end */
 		if (ZBX_DBSYNC_ROW_REMOVE == tag)
 			break;
@@ -5846,50 +5479,59 @@ static void	DCsync_item_tags(zbx_dbsync_t *sync)
 		if (NULL == (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, &itemid)))
 			continue;
 
-		ZBX_STR2UINT64(itemtagid, row[0]);
+		ZBX_STR2UINT64(item_tag_local.itemtagid, row[0]);
 
-		item_tag = (zbx_dc_item_tag_t *)DCfind_id_ext(&config->item_tags, itemtagid, sizeof(zbx_dc_item_tag_t),
-				&found, uniq);
-		dc_strpool_replace(found, &item_tag->tag, row[2]);
-		dc_strpool_replace(found, &item_tag->value, row[3]);
+		item_tag_link = (zbx_dc_item_tag_link *)DCfind_id_ext(&config_private.item_tag_links,
+				item_tag_local.itemtagid, sizeof(zbx_dc_item_tag_link), &found, uniq);
 
-		if (0 == found)
+		if (0 == found || FAIL == (index = zbx_vector_dc_item_tag_search(&item->tags, item_tag_local,
+				ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
 		{
-			item_tag->itemid = itemid;
-			zbx_vector_ptr_reserve(&item->tags, ZBX_VECTOR_ARRAY_RESERVE);
-			zbx_vector_ptr_append(&item->tags, item_tag);
-
+			found = 0;
+			item_tag_link->itemid = itemid;
+			zbx_vector_dc_item_tag_reserve(&item->tags, item->tags.values_alloc + 1);
+			zbx_vector_dc_item_tag_append(&item->tags, item_tag_local);
+			index = item->tags.values_num - 1;
 		}
+
+		dc_strpool_replace(found, &item->tags.values[index].tag, row[2]);
+		dc_strpool_replace(found, &item->tags.values[index].value, row[3]);
 	}
 
 	/* remove unused item tags */
 
 	for (; SUCCEED == ret; ret = zbx_dbsync_next(sync, &rowid, &row, &tag))
 	{
-		if (NULL == (item_tag = (zbx_dc_item_tag_t *)zbx_hashset_search(&config->item_tags, &rowid)))
-			continue;
+		zbx_dc_item_tag_link	*item_tag_link;
 
-		if (NULL != (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, &item_tag->itemid)))
+		if (NULL == (item_tag_link = (zbx_dc_item_tag_link *)zbx_hashset_search(&config_private.item_tag_links,
+				&rowid)))
 		{
-			if (FAIL != (index = zbx_vector_ptr_search(&item->tags, item_tag,
-					ZBX_DEFAULT_PTR_COMPARE_FUNC)))
-			{
-				zbx_vector_ptr_remove_noorder(&item->tags, index);
+			continue;
+		}
 
-				/* recreate empty tags vector to release used memory */
+		if (NULL != (item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, &item_tag_link->itemid)))
+		{
+			zbx_dc_item_tag_t	item_tag_local = {.itemtagid = item_tag_link->itemtagid};
+
+			if (FAIL != (index = zbx_vector_dc_item_tag_search(&item->tags, item_tag_local,
+					ZBX_DEFAULT_UINT64_COMPARE_FUNC)))
+			{
+				dc_strpool_release(item->tags.values[index].tag);
+				dc_strpool_release(item->tags.values[index].value);
+
+				zbx_vector_dc_item_tag_remove_noorder(&item->tags, index);
+
 				if (0 == item->tags.values_num)
 				{
-					zbx_vector_ptr_destroy(&item->tags);
-					zbx_vector_ptr_create_ext(&item->tags, __config_shmem_malloc_func,
+					zbx_vector_dc_item_tag_destroy(&item->tags);
+					zbx_vector_dc_item_tag_create_ext(&item->tags, __config_shmem_malloc_func,
 							__config_shmem_realloc_func, __config_shmem_free_func);
 				}
 			}
 		}
 
-		dc_strpool_release(item_tag->tag);
-		dc_strpool_release(item_tag->value);
-
-		zbx_hashset_remove_direct(&config->item_tags, item_tag);
+		zbx_hashset_remove_direct(&config_private.item_tag_links, item_tag_link);
 	}
 
 	zbx_dcsync_sync_end(sync, dbconfig_used_size());
@@ -7877,10 +7519,10 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 {
 	static int	sync_status = ZBX_DBSYNC_STATUS_UNKNOWN;
 
-	int		i, flags, changelog_num, dberr = ZBX_DB_FAIL;
+	int		i, changelog_num, dberr = ZBX_DB_FAIL;
 	double		sec, update_sec, queues_sec, changelog_sec;
 
-	zbx_dbsync_t	config_sync, hosts_sync, hi_sync, htmpl_sync, gmacro_sync, hmacro_sync, if_sync, items_sync,
+	zbx_dbsync_t	settings_sync, hosts_sync, hi_sync, htmpl_sync, gmacro_sync, hmacro_sync, if_sync, items_sync,
 			item_discovery_sync, triggers_sync, tdep_sync,
 			func_sync, expr_sync, action_sync, action_op_sync, action_condition_sync, trigger_tag_sync,
 			item_tag_sync, host_tag_sync, correlation_sync, corr_condition_sync, corr_operation_sync,
@@ -7936,7 +7578,7 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 	changelog_sec = zbx_time() - sec;
 
 	/* global configuration must be synchronized directly with database */
-	zbx_dbsync_init(&config_sync, "config", ZBX_DBSYNC_INIT);
+	zbx_dbsync_init(&settings_sync, "settings", ZBX_DBSYNC_INIT);
 
 	zbx_dbsync_init(&autoreg_config_sync, "config_autoreg_tls", mode);
 	zbx_dbsync_init(&autoreg_host_sync, "autoreg_host", mode);
@@ -7992,7 +7634,7 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 
 	zbx_dbsync_init_changelog(&proxy_sync, "proxy", changelog_sync_mode);
 
-	if (FAIL == zbx_dbsync_compare_config(&config_sync))
+	if (FAIL == zbx_dbsync_compare_settings(&settings_sync))
 		goto out;
 
 	if (FAIL == zbx_dbsync_compare_autoreg_psk(&autoreg_config_sync))
@@ -8007,7 +7649,7 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 	/* sync global configuration settings */
 	START_SYNC;
 
-	DCsync_config(&config_sync, new_revision, &flags);
+	dc_sync_settings(&settings_sync, new_revision);
 
 	/* must be done in the same cache locking with config sync */
 	DCsync_autoreg_config(&autoreg_config_sync, new_revision);
@@ -8035,14 +7677,16 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 	START_SYNC;
 
 	config->um_cache = um_cache_sync(config->um_cache, new_revision, &gmacro_sync, &hmacro_sync, &htmpl_sync,
-			config_vault, get_program_type_cb());
+			config_vault);
 
 	DCsync_host_tags(&host_tag_sync);
 
 	FINISH_SYNC;
 
 	/* postpone configuration sync until macro secrets are received from Zabbix server */
-	if (0 == (get_program_type_cb() & ZBX_PROGRAM_TYPE_SERVER) && 0 != config->kvs_paths.values_num &&
+	if (0 == (get_program_type_cb() & ZBX_PROGRAM_TYPE_SERVER) &&
+			ZBX_PROXY_SECRETS_PROVIDER_SERVER == config->config->proxy_secrets_provider &&
+			0 != config->kvs_paths.values_num &&
 			ZBX_DBSYNC_INIT == mode)
 	{
 		goto clean;
@@ -8169,7 +7813,7 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 	DCsync_interfaces(&if_sync, new_revision);
 
 	/* relies on hosts, proxies and interfaces, must be after DCsync_{hosts,interfaces}() */
-	DCsync_items(&items_sync, new_revision, flags, synced, deleted_itemids, pnew_items);
+	DCsync_items(&items_sync, new_revision, synced, deleted_itemids, pnew_items);
 	DCsync_item_discovery(&item_discovery_sync);
 
 	/* relies on items, must be after DCsync_items() */
@@ -8359,6 +8003,8 @@ zbx_uint64_t	zbx_dc_sync_configuration(unsigned char mode, zbx_synced_new_config
 				config->template_items.num_data, config->template_items.num_slots);
 		zabbix_log(LOG_LEVEL_DEBUG, "%s() preprocitems: %d (%d slots)", __func__,
 				config->preprocops.num_data, config->preprocops.num_slots);
+		zabbix_log(LOG_LEVEL_DEBUG, "%s() item_tag_links: %d (%d slots)", __func__,
+				config_private.item_tag_links.num_data, config_private.item_tag_links.num_slots);
 		zabbix_log(LOG_LEVEL_DEBUG, "%s() functions  : %d (%d slots)", __func__,
 				config->functions.num_data, config->functions.num_slots);
 		zabbix_log(LOG_LEVEL_DEBUG, "%s() triggers   : %d (%d slots)", __func__,
@@ -8506,7 +8152,7 @@ out:
 				" please check \"StartConnectors\" configuration parameter");
 	}
 clean:
-	zbx_dbsync_clear(&config_sync);
+	zbx_dbsync_clear(&settings_sync);
 	zbx_dbsync_clear(&autoreg_config_sync);
 	zbx_dbsync_clear(&autoreg_host_sync);
 	zbx_dbsync_clear(&hosts_sync);
@@ -8984,7 +8630,6 @@ int	zbx_init_configuration_cache(zbx_get_program_type_f get_program_type, zbx_ge
 	CREATE_HASHSET(config->actions, 0);
 	CREATE_HASHSET(config->action_conditions, 0);
 	CREATE_HASHSET(config->trigger_tags, 0);
-	CREATE_HASHSET(config->item_tags, 0);
 	CREATE_HASHSET(config->host_tags, 0);
 	CREATE_HASHSET(config->host_tags_index, 0);
 	CREATE_HASHSET(config->correlations, 0);
@@ -9140,8 +8785,11 @@ int	zbx_init_configuration_cache(zbx_get_program_type_f get_program_type, zbx_ge
 	config->proxy_failover_delay_raw = NULL;
 	config->proxy_failover_delay = ZBX_PG_DEFAULT_FAILOVER_DELAY;
 	config->proxy_lastonline = 0;
+	config->sync_status = 0;
 
 	zbx_dbsync_env_init(config);
+	zbx_hashset_create(&config_private.item_tag_links, 0, ZBX_DEFAULT_UINT64_HASH_FUNC,
+			ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
 #undef CREATE_HASHSET
 #undef CREATE_HASHSET_EXT
@@ -9172,6 +8820,9 @@ void	zbx_free_configuration_cache(void)
 	config_mem = NULL;
 	zbx_rwlock_destroy(&config_history_lock);
 	zbx_rwlock_destroy(&config_lock);
+
+	zbx_hashset_destroy(&config_private.item_tag_links);
+	memset(&config_private, 0, sizeof(config_private));
 
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
@@ -9288,25 +8939,30 @@ int	zbx_dc_get_host_by_hostid(zbx_dc_host_t *host, zbx_uint64_t hostid)
 /******************************************************************************
  *                                                                            *
  * Purpose:                                                                   *
- *     Check access rights for host and get host ID and revision              *
+ *     Check connection access rights for host and get host data              *
  *                                                                            *
  * Parameters:                                                                *
- *     host     - [IN] host name                                              *
- *     sock     - [IN] connection socket context                              *
- *     hostid   - [OUT] host ID found in configuration cache                  *
- *     revision - [OUT] host configuration revision                           *
- *     error    - [OUT] error message why access was denied                   *
+ *     host         - [IN] host name                                          *
+ *     sock         - [IN] connection socket context                          *
+ *     hostid       - [OUT] host ID found in configuration cache              *
+ *     status       - [OUT] host status                                       *
+ *     monitored_by - [OUT]                                                   *
+ *     revision     - [OUT] host configuration revision                       *
+ *     redirect     - [OUT] host redirection information (optional)           *
+ *     error        - [OUT] error message why access was denied               *
  *                                                                            *
  * Return value:                                                              *
- *     SUCCEED - access is allowed or host not found, FAIL - access denied    *
+ *     SUCCEED - access is allowed or host not found, FAIL - access denied or *
+ *               host redirection error if redirection data is requested      *
  *                                                                            *
  * Comments:                                                                  *
  *     Generating of error messages is done outside of configuration cache    *
  *     locking.                                                               *
  *                                                                            *
  ******************************************************************************/
-int	zbx_dc_check_host_permissions(const char *host, const zbx_socket_t *sock, zbx_uint64_t *hostid,
-		zbx_uint64_t *revision, zbx_comms_redirect_t *redirect, char **error)
+int	zbx_dc_check_host_conn_permissions(const char *host, const zbx_socket_t *sock, zbx_uint64_t *hostid,
+		unsigned char *status, unsigned char *monitored_by, zbx_uint64_t *revision,
+		zbx_comms_redirect_t *redirect, char **error)
 {
 	const ZBX_DC_HOST	*dc_host = NULL;
 #if defined(HAVE_GNUTLS) || defined(HAVE_OPENSSL)
@@ -9336,21 +8992,8 @@ int	zbx_dc_check_host_permissions(const char *host, const zbx_socket_t *sock, zb
 	{
 		UNLOCK_CACHE;
 		*hostid = 0;
+
 		return SUCCEED;
-	}
-
-	if (HOST_STATUS_MONITORED != dc_host->status)
-	{
-		UNLOCK_CACHE;
-		*error = zbx_dsprintf(NULL, "host \"%s\" not monitored", host);
-		return FAIL;
-	}
-
-	if (HOST_MONITORED_BY_SERVER != dc_host->monitored_by)
-	{
-		UNLOCK_CACHE;
-		*error = zbx_dsprintf(NULL, "host \"%s\" is monitored by a proxy or proxy group", host);
-		return FAIL;
 	}
 
 	if (0 == ((unsigned int)dc_host->tls_accept & sock->connection_type))
@@ -9371,7 +9014,8 @@ int	zbx_dc_check_host_permissions(const char *host, const zbx_socket_t *sock, zb
 		return FAIL;
 	}
 #endif
-
+	*status = dc_host->status;
+	*monitored_by = dc_host->monitored_by;
 	*hostid = dc_host->hostid;
 	*revision = MAX(dc_host->revision, config->revision.expression);
 
@@ -9388,8 +9032,10 @@ int	zbx_dc_check_host_permissions(const char *host, const zbx_socket_t *sock, zb
 }
 
 int	zbx_dc_is_autoreg_host_changed(const char *host, unsigned short port, const char *host_metadata,
-		zbx_conn_flags_t flag, const char *interface, int now, int heartbeat)
+		zbx_conn_flags_t flag, const char *interface, int now)
 {
+#define AUTO_REGISTRATION_HEARTBEAT	120
+
 	const ZBX_DC_AUTOREG_HOST	*dc_autoreg_host;
 	int				ret;
 
@@ -9417,7 +9063,7 @@ int	zbx_dc_is_autoreg_host_changed(const char *host, unsigned short port, const 
 	{
 		ret = SUCCEED;
 	}
-	else if (0 != heartbeat && heartbeat < now - dc_autoreg_host->timestamp)
+	else if (AUTO_REGISTRATION_HEARTBEAT < now - dc_autoreg_host->timestamp)
 	{
 		ret = SUCCEED;
 	}
@@ -9467,9 +9113,9 @@ static void	autoreg_host_free_data(ZBX_DC_AUTOREG_HOST *autoreg_host)
 	dc_strpool_release(autoreg_host->host_metadata);
 }
 
-void	zbx_dc_config_delete_autoreg_host(const zbx_vector_autoreg_host_ptr_t *autoreg_hosts)
+void	zbx_dc_config_delete_autoreg_host(const zbx_vector_str_t *autoreg_hosts)
 {
-	int			cached = 0, i;
+	int	cached = 0, i;
 
 	/* hosts monitored by Zabbix proxy shouldn't be changed too frequently */
 	if (0 == autoreg_hosts->values_num)
@@ -9479,7 +9125,7 @@ void	zbx_dc_config_delete_autoreg_host(const zbx_vector_autoreg_host_ptr_t *auto
 	RDLOCK_CACHE;
 	for (i = 0; i < autoreg_hosts->values_num; i++)
 	{
-		if (NULL != DCfind_autoreg_host(((const zbx_autoreg_host_t *)autoreg_hosts->values[i])->host))
+		if (NULL != DCfind_autoreg_host(autoreg_hosts->values[i]))
 			cached++;
 	}
 	UNLOCK_CACHE;
@@ -9495,7 +9141,7 @@ void	zbx_dc_config_delete_autoreg_host(const zbx_vector_autoreg_host_ptr_t *auto
 	{
 		ZBX_DC_AUTOREG_HOST	*autoreg_host;
 
-		autoreg_host = DCfind_autoreg_host(((const zbx_autoreg_host_t *)autoreg_hosts->values[i])->host);
+		autoreg_host = DCfind_autoreg_host(autoreg_hosts->values[i]);
 		if (NULL != autoreg_host)
 		{
 			autoreg_host_free_data(autoreg_host);
@@ -9571,14 +9217,17 @@ size_t	zbx_dc_get_psk_by_identity(const unsigned char *psk_identity, unsigned ch
 
 	UNLOCK_CACHE;
 
-	if (0 == strcmp((const char *)psk_buf, (const char *)autoreg_psk_tmp))
+	if (0 == strcasecmp((const char *)psk_buf, (const char *)autoreg_psk_tmp))
 	{
 		*psk_usage |= ZBX_PSK_FOR_AUTOREG;
 		return psk_len;
 	}
 
-	zabbix_log(LOG_LEVEL_WARNING, "host PSK and autoregistration PSK have the same identity \"%s\" but"
+	/* stricter API validation for PSK identities is expected to make this use-case impossible */
+	zabbix_log(LOG_LEVEL_CRIT, "host PSK and autoregistration PSK have the same identity \"%s\" but"
 			" different PSK values, autoregistration will not be allowed", psk_identity);
+	THIS_SHOULD_NEVER_HAPPEN;
+
 	return psk_len;
 }
 #endif
@@ -9654,7 +9303,6 @@ static void	DCget_item(zbx_dc_item_t *dst_item, const ZBX_DC_ITEM *src_item)
 	const ZBX_DC_TRAPITEM		*trapitem;
 	const ZBX_DC_INTERFACE		*dc_interface;
 	int				i;
-	struct zbx_json			json;
 
 	dst_item->type = src_item->type;
 	dst_item->value_type = src_item->value_type;
@@ -9813,39 +9461,37 @@ static void	DCget_item(zbx_dc_item_t *dst_item, const ZBX_DC_ITEM *src_item)
 			dst_item->password = NULL;
 			break;
 		case ITEM_TYPE_SCRIPT:
-			zbx_json_init(&json, ZBX_JSON_STAT_BUF_LEN);
-
 			dst_item->params = zbx_strdup(NULL, src_item->itemtype.scriptitem->script);
 
+			zbx_vector_ptr_pair_create(&dst_item->script_params);
 			for (i = 0; i < src_item->itemtype.scriptitem->params.values_num; i++)
 			{
 				zbx_dc_item_param_t	*params =
 						(zbx_dc_item_param_t*)(src_item->itemtype.scriptitem->params.values[i]);
+				zbx_ptr_pair_t	pair;
 
-				zbx_json_addstring(&json, params->name, params->value, ZBX_JSON_TYPE_STRING);
+				pair.first = zbx_strdup(NULL, params->name);
+				pair.second = zbx_strdup(NULL, params->value);
+				zbx_vector_ptr_pair_append(&dst_item->script_params, pair);
 			}
-
-			dst_item->script_params = zbx_strdup(NULL, json.buffer);
-			zbx_json_free(&json);
 
 			dst_item->timeout = 0;
 
 			break;
 		case ITEM_TYPE_BROWSER:
-			zbx_json_init(&json, ZBX_JSON_STAT_BUF_LEN);
-
 			dst_item->params = zbx_strdup(NULL, src_item->itemtype.browseritem->script);
 
+			zbx_vector_ptr_pair_create(&dst_item->script_params);
 			for (i = 0; i < src_item->itemtype.browseritem->params.values_num; i++)
 			{
-				zbx_dc_item_param_t	*params;
+				zbx_dc_item_param_t	*params =
+						(zbx_dc_item_param_t*)(src_item->itemtype.browseritem->params.values[i]);
+				zbx_ptr_pair_t	pair;
 
-				params = (zbx_dc_item_param_t*)(src_item->itemtype.browseritem->params.values[i]);
-				zbx_json_addstring(&json, params->name, params->value, ZBX_JSON_TYPE_STRING);
+				pair.first = zbx_strdup(NULL, params->name);
+				pair.second = zbx_strdup(NULL, params->value);
+				zbx_vector_ptr_pair_append(&dst_item->script_params, pair);
 			}
-
-			dst_item->script_params = zbx_strdup(NULL, json.buffer);
-			zbx_json_free(&json);
 
 			dst_item->timeout = 0;
 
@@ -9905,7 +9551,12 @@ void	zbx_dc_config_clean_items(zbx_dc_item_t *items, int *errcodes, size_t num)
 				break;
 			case ITEM_TYPE_SCRIPT:
 			case ITEM_TYPE_BROWSER:
-				zbx_free(items[i].script_params);
+				for (int j = 0; j < items[i].script_params.values_num; j++)
+				{
+					zbx_free(items[i].script_params.values[j].first);
+					zbx_free(items[i].script_params.values[j].second);
+				}
+				zbx_vector_ptr_pair_destroy(&items[i].script_params);
 				ZBX_FALLTHROUGH;
 			case ITEM_TYPE_DB_MONITOR:
 			case ITEM_TYPE_SSH:
@@ -10118,16 +9769,19 @@ void	zbx_dc_config_get_items_by_itemids(zbx_dc_item_t *items, const zbx_uint64_t
 
 int	zbx_dc_config_get_active_items_count_by_hostid(zbx_uint64_t hostid)
 {
-	const ZBX_DC_HOST	*dc_host;
-	int			i, num = 0;
+	ZBX_DC_HOST		*dc_host;
+	int			num = 0;
+	zbx_hashset_iter_t	iter;
+	ZBX_DC_ITEM_REF		*ref;
 
 	RDLOCK_CACHE;
 
 	if (NULL != (dc_host = (ZBX_DC_HOST *)zbx_hashset_search(&config->hosts, &hostid)))
 	{
-		for (i = 0; i < dc_host->items.values_num; i++)
+		zbx_hashset_iter_reset(&dc_host->items, &iter);
+		while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&iter)))
 		{
-			if (ITEM_TYPE_ZABBIX_ACTIVE == dc_host->items.values[i]->type)
+			if (ITEM_TYPE_ZABBIX_ACTIVE == ref->item->type)
 				num++;
 		}
 	}
@@ -10139,24 +9793,23 @@ int	zbx_dc_config_get_active_items_count_by_hostid(zbx_uint64_t hostid)
 
 void	zbx_dc_config_get_active_items_by_hostid(zbx_dc_item_t *items, zbx_uint64_t hostid, int *errcodes, size_t num)
 {
-	const ZBX_DC_HOST	*dc_host;
-	size_t			i, j = 0;
+	ZBX_DC_HOST		*dc_host;
+	size_t			j = 0;
+	zbx_hashset_iter_t	iter;
+	ZBX_DC_ITEM_REF		*ref;
 
 	RDLOCK_CACHE;
 
 	if (NULL != (dc_host = (ZBX_DC_HOST *)zbx_hashset_search(&config->hosts, &hostid)) &&
-			0 != dc_host->items.values_num)
+			0 != dc_host->items.num_data)
 	{
-		for (i = 0; i < (size_t)dc_host->items.values_num && j < num; i++)
+		zbx_hashset_iter_reset(&dc_host->items, &iter);
+		while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&iter)))
 		{
-			const ZBX_DC_ITEM	*dc_item;
-
-			dc_item = dc_host->items.values[i];
-
-			if (ITEM_TYPE_ZABBIX_ACTIVE != dc_item->type)
+			if (ITEM_TYPE_ZABBIX_ACTIVE != ref->item->type)
 				continue;
 
-			DCget_item(&items[j], dc_item);
+			DCget_item(&items[j], ref->item);
 			errcodes[j++] = SUCCEED;
 		}
 
@@ -10164,7 +9817,7 @@ void	zbx_dc_config_get_active_items_by_hostid(zbx_dc_item_t *items, zbx_uint64_t
 		{
 			DCget_host(&items[0].host, dc_host);
 
-			for (i = 1; i < j; i++)
+			for (size_t i = 1; i < j; i++)
 				items[i].host = items[0].host;
 		}
 	}
@@ -10204,27 +9857,32 @@ static void	dc_preproc_sync_preprocitem(zbx_pp_item_preproc_t *preproc, const ZB
 
 /******************************************************************************
  *                                                                            *
- * Purpose: sync mater-dependent item links                                   *
+ * Purpose: sync master-dependent item links                                  *
  *                                                                            *
  ******************************************************************************/
-static void	dc_preproc_sync_masteritem(zbx_pp_item_preproc_t *preproc, const ZBX_DC_MASTERITEM *masteritem)
+static void	dc_preproc_sync_masteritem(zbx_pp_item_preproc_t *preproc, ZBX_DC_MASTERITEM *masteritem)
 {
-	preproc->dep_itemids = (zbx_uint64_t *)zbx_malloc(NULL,
-			sizeof(zbx_uint64_t) * (size_t)masteritem->dep_itemids.values_num);
+	zbx_hashset_iter_t	iter;
+	zbx_uint64_t		*pitemid;
+	int			i = 0;
 
-	for (int i = 0; i < masteritem->dep_itemids.values_num; i++)
-		preproc->dep_itemids[i] = masteritem->dep_itemids.values[i].first;
+	preproc->dep_itemids = (zbx_uint64_t *)zbx_malloc(NULL,
+			sizeof(zbx_uint64_t) * (size_t)masteritem->dep_itemids.num_data);
+
+	zbx_hashset_iter_reset(&masteritem->dep_itemids, &iter);
+	while (NULL != (pitemid = (zbx_uint64_t *)zbx_hashset_iter_next(&iter)))
+		preproc->dep_itemids[i++] = *pitemid;
 
 	qsort(preproc->dep_itemids, (size_t)preproc->dep_itemids_num, sizeof(zbx_uint64_t),
 			ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
-	preproc->dep_itemids_num = masteritem->dep_itemids.values_num;
+	preproc->dep_itemids_num = masteritem->dep_itemids.num_data;
 }
 
 static void	dc_preproc_sync_item(zbx_hashset_t *items, ZBX_DC_ITEM *dc_item, zbx_uint64_t revision)
 {
 	zbx_pp_item_t		*pp_item;
-	zbx_pp_history_t	*history = NULL;
+	zbx_pp_history_cache_t	*history_cache = NULL;
 
 	if (NULL == (pp_item = (zbx_pp_item_t *)zbx_hashset_search(items, &dc_item->itemid)))
 	{
@@ -10235,7 +9893,7 @@ static void	dc_preproc_sync_item(zbx_hashset_t *items, ZBX_DC_ITEM *dc_item, zbx
 	else
 	{
 		if (NULL != dc_item->preproc_item && pp_item->preproc->pp_revision == dc_item->preproc_item->revision)
-			history = zbx_pp_history_clone(pp_item->preproc->history);
+			history_cache = zbx_pp_history_cache_acquire(pp_item->preproc->history_cache);
 
 		zbx_pp_item_preproc_release(pp_item->preproc);
 	}
@@ -10254,11 +9912,18 @@ static void	dc_preproc_sync_item(zbx_hashset_t *items, ZBX_DC_ITEM *dc_item, zbx
 		if (SUCCEED == zbx_pp_preproc_has_history(pp_item->preproc->steps[i].type))
 		{
 			pp_item->preproc->history_num++;
-			pp_item->preproc->mode = ZBX_PP_PROCESS_SERIAL;
+
+			if (SUCCEED == zbx_pp_preproc_has_serial_history(pp_item->preproc->steps[i].type))
+				pp_item->preproc->mode = ZBX_PP_PROCESS_SERIAL;
 		}
 	}
 
-	pp_item->preproc->history = history;
+	pp_item->preproc->history_cache = history_cache;
+	if (0 != pp_item->preproc->history_num)
+	{
+		if (NULL == pp_item->preproc->history_cache)
+			pp_item->preproc->history_cache = zbx_pp_history_cache_create();
+	}
 }
 
 static void	dc_preproc_add_item_rec(ZBX_DC_ITEM *dc_item, zbx_vector_dc_item_ptr_t *items_sync)
@@ -10267,14 +9932,15 @@ static void	dc_preproc_add_item_rec(ZBX_DC_ITEM *dc_item, zbx_vector_dc_item_ptr
 
 	if (NULL != dc_item->master_item)
 	{
-		int	i;
+		zbx_hashset_iter_t	iter;
+		zbx_uint64_t		*pitemid;
 
-		for (i = 0; i < dc_item->master_item->dep_itemids.values_num; i++)
+		zbx_hashset_iter_reset(&dc_item->master_item->dep_itemids, &iter);
+		while (NULL != (pitemid = (zbx_uint64_t *)zbx_hashset_iter_next(&iter)))
 		{
 			ZBX_DC_ITEM	*dep_item;
 
-			if (NULL == (dep_item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items,
-					&dc_item->master_item->dep_itemids.values[i].first)) ||
+			if (NULL == (dep_item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, pitemid)) ||
 					ITEM_STATUS_ACTIVE != dep_item->status)
 			{
 				continue;
@@ -10287,6 +9953,9 @@ static void	dc_preproc_add_item_rec(ZBX_DC_ITEM *dc_item, zbx_vector_dc_item_ptr
 
 static int	dc_preproc_item_changed(ZBX_DC_ITEM *dc_item, zbx_pp_item_t *pp_item)
 {
+	if (dc_item->value_type != pp_item->preproc->value_type)
+		return SUCCEED;
+
 	if (dc_item->type != pp_item->preproc->type)
 		return SUCCEED;
 
@@ -10344,12 +10013,16 @@ void	zbx_dc_config_get_preprocessable_items(zbx_hashset_t *items, zbx_dc_um_shar
 	zbx_hashset_iter_reset(&config->hosts, &iter);
 	while (NULL != (dc_host = (ZBX_DC_HOST *)zbx_hashset_iter_next(&iter)))
 	{
+		zbx_hashset_iter_t	item_iter;
+		ZBX_DC_ITEM_REF		*ref;
+
 		if (HOST_STATUS_MONITORED != dc_host->status)
 			continue;
 
-		for (i = 0; i < dc_host->items.values_num; i++)
+		zbx_hashset_iter_reset(&dc_host->items, &item_iter);
+		while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&item_iter)))
 		{
-			ZBX_DC_ITEM	*dc_item = dc_host->items.values[i];
+			ZBX_DC_ITEM	*dc_item = ref->item;
 
 			if (ITEM_STATUS_ACTIVE != dc_item->status || ITEM_TYPE_DEPENDENT == dc_item->type)
 				continue;
@@ -10362,7 +10035,9 @@ void	zbx_dc_config_get_preprocessable_items(zbx_hashset_t *items, zbx_dc_um_shar
 			}
 
 			if (HOST_MONITORED_BY_SERVER == dc_host->monitored_by ||
-					SUCCEED == zbx_is_item_processed_by_server(dc_item->type, dc_item->key))
+					SUCCEED == zbx_is_item_processed_by_server(dc_item->type, dc_item->key) ||
+					ITEM_TYPE_TRAPPER == dc_item->type || (ITEM_TYPE_HTTPAGENT == dc_item->type &&
+					1 == dc_item->itemtype.httpitem->allow_traps))
 			{
 				dc_preproc_add_item_rec(dc_item, &items_sync);
 			}
@@ -10430,19 +10105,44 @@ int	zbx_dc_get_host_value(zbx_uint64_t itemid, char **replace_to, int request)
 
 	switch (request)
 	{
-		case ZBX_REQUEST_HOST_ID:
+		case ZBX_DC_REQUEST_HOST_ID:
 			*replace_to = zbx_dsprintf(*replace_to, ZBX_FS_UI64, host.hostid);
 			break;
-		case ZBX_REQUEST_HOST_HOST:
+		case ZBX_DC_REQUEST_HOST_HOST:
 			*replace_to = zbx_strdup(*replace_to, host.host);
 			break;
-		case ZBX_REQUEST_HOST_NAME:
+		case ZBX_DC_REQUEST_HOST_NAME:
 			*replace_to = zbx_strdup(*replace_to, host.name);
 			break;
 		default:
 			THIS_SHOULD_NEVER_HAPPEN;
 			ret = FAIL;
 	}
+
+	return ret;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: gets host hostname from itemid                                    *
+ *                                                                            *
+ * Parameters: itemid     - [IN]                                              *
+ *             replace_to - [OUT] buffer where to put hostname                *
+ *                                                                            *
+ * Return value: FAIL when item is not found                                  *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dc_get_host_host(zbx_uint64_t itemid, char **replace_to)
+{
+	int		ret;
+	zbx_dc_host_t	host;
+
+	zbx_dc_config_get_hosts_by_itemids(&host, &itemid, &ret, 1);
+
+	if (FAIL == ret)
+		return FAIL;
+
+	*replace_to = zbx_strdup(*replace_to, host.host);
 
 	return ret;
 }
@@ -11367,13 +11067,13 @@ int	zbx_dc_get_interface_value(zbx_uint64_t hostid, zbx_uint64_t itemid, char **
 
 	switch (request)
 	{
-		case ZBX_REQUEST_HOST_IP:
+		case ZBX_DC_REQUEST_HOST_IP:
 			if ('\0' != *interface.ip_orig && FAIL == zbx_is_ip(interface.ip_orig))
 				return FAIL;
 
 			*replace_to = zbx_strdup(*replace_to, interface.ip_orig);
 			break;
-		case ZBX_REQUEST_HOST_DNS:
+		case ZBX_DC_REQUEST_HOST_DNS:
 			if ('\0' != *interface.dns_orig && FAIL == zbx_is_ip(interface.dns_orig) &&
 					FAIL == zbx_validate_hostname(interface.dns_orig))
 			{
@@ -11382,7 +11082,7 @@ int	zbx_dc_get_interface_value(zbx_uint64_t hostid, zbx_uint64_t itemid, char **
 
 			*replace_to = zbx_strdup(*replace_to, interface.dns_orig);
 			break;
-		case ZBX_REQUEST_HOST_CONN:
+		case ZBX_DC_REQUEST_HOST_CONN:
 			if (FAIL == zbx_is_ip(interface.addr) &&
 					FAIL == zbx_validate_hostname(interface.addr))
 			{
@@ -11391,7 +11091,7 @@ int	zbx_dc_get_interface_value(zbx_uint64_t hostid, zbx_uint64_t itemid, char **
 
 			*replace_to = zbx_strdup(*replace_to, interface.addr);
 			break;
-		case ZBX_REQUEST_HOST_PORT:
+		case ZBX_DC_REQUEST_HOST_PORT:
 			*replace_to = zbx_strdup(*replace_to, interface.port_orig);
 			break;
 		default:
@@ -11400,6 +11100,25 @@ int	zbx_dc_get_interface_value(zbx_uint64_t hostid, zbx_uint64_t itemid, char **
 	}
 
 	return res;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: retrieve a particular value associated with the interface.        *
+ *                                                                            *
+ * Parameters: itemid     - [IN]                                              *
+ *             replace_to - [OUT] place to put value                          *
+ *             request    - [IN] type of value to get                         *
+ *                                                                            *
+ * Return value: upon successful completion return SUCCEED                    *
+ *               otherwise FAIL                                               *
+ *                                                                            *
+ * Comments: This function is used as callback in zbx_db_with_trigger_itemid  *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dc_get_interface_value_itemid(zbx_uint64_t itemid, char **replace_to, int request)
+{
+	return zbx_dc_get_interface_value(0, itemid, replace_to, request);
 }
 
 /******************************************************************************
@@ -12864,7 +12583,7 @@ int	zbx_dc_get_item_queue(zbx_vector_queue_item_ptr_t *queue, int from, int to)
 {
 	zbx_hashset_iter_t	iter;
 	const ZBX_DC_ITEM	*dc_item;
-	const ZBX_DC_HOST	*dc_host;
+	ZBX_DC_HOST		*dc_host;
 	int			now, nitems = 0, data_expected_from, delay;
 	zbx_queue_item_t	*queue_item;
 
@@ -12874,19 +12593,22 @@ int	zbx_dc_get_item_queue(zbx_vector_queue_item_ptr_t *queue, int from, int to)
 
 	zbx_hashset_iter_reset(&config->hosts, &iter);
 
-	while (NULL != (dc_host = (const ZBX_DC_HOST *)zbx_hashset_iter_next(&iter)))
+	while (NULL != (dc_host = (ZBX_DC_HOST *)zbx_hashset_iter_next(&iter)))
 	{
 		const ZBX_DC_INTERFACE	*dc_interface = NULL;
+		zbx_hashset_iter_t	item_iter;
+		ZBX_DC_ITEM_REF		*ref;
 
 		if (HOST_STATUS_MONITORED != dc_host->status)
 			continue;
 
-		for (int i = 0; i < dc_host->items.values_num; i++)
+		zbx_hashset_iter_reset(&dc_host->items, &item_iter);
+		while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&item_iter)))
 		{
-			char			*delay_s;
-			int			ret;
+			char	*delay_s;
+			int	ret;
 
-			dc_item = dc_host->items.values[i];
+			dc_item = ref->item;
 
 			if (ITEM_STATUS_ACTIVE != dc_item->status)
 				continue;
@@ -13053,12 +12775,15 @@ static int	get_active_item_count_rec(const ZBX_DC_ITEM *dc_item)
 
 	if (NULL != dc_item->master_item)
 	{
-		for (int i = 0; i < dc_item->master_item->dep_itemids.values_num; i++)
+		zbx_hashset_iter_t	iter;
+		zbx_uint64_t		*pitemid;
+
+		zbx_hashset_iter_reset(&dc_item->master_item->dep_itemids, &iter);
+		while (NULL != (pitemid = (zbx_uint64_t *)zbx_hashset_iter_next(&iter)))
 		{
 			ZBX_DC_ITEM	*dep_item;
 
-			if (NULL != (dep_item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items,
-					&dc_item->master_item->dep_itemids.values[i].first)) &&
+			if (NULL != (dep_item = (ZBX_DC_ITEM *)zbx_hashset_search(&config->items, pitemid)) &&
 					ITEM_STATUS_ACTIVE == dep_item->status)
 			{
 				count += get_active_item_count_rec(dep_item);
@@ -13096,13 +12821,15 @@ static void	update_required_performance(const ZBX_DC_ITEM *dc_item, zbx_dc_statu
 static void	get_host_statistics(ZBX_DC_HOST *dc_host, zbx_dc_status_diff_host_t *host_diff,
 		zbx_dc_status_diff_proxy_t *proxy_diff, zbx_dc_status_diff_t *diff)
 {
-	int			i;
 	const ZBX_DC_ITEM	*dc_item;
+	zbx_hashset_iter_t	iter;
+	ZBX_DC_ITEM_REF		*ref;
 
 	/* loop over items to gather per-host and per-proxy statistics */
-	for (i = 0; i < dc_host->items.values_num; i++)
+	zbx_hashset_iter_reset(&dc_host->items, &iter);
+	while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&iter)))
 	{
-		dc_item = dc_host->items.values[i];
+		dc_item = ref->item;
 
 		if (ZBX_FLAG_DISCOVERY_NORMAL != dc_item->flags && ZBX_FLAG_DISCOVERY_CREATED != dc_item->flags)
 			continue;
@@ -13902,6 +13629,12 @@ void	zbx_config_get(zbx_config_t *cfg, zbx_uint64_t flags)
 	if (0 != (flags & ZBX_CONFIG_FLAGS_AUDITLOG_MODE))
 		cfg->auditlog_mode = config->config->auditlog_mode;
 
+	if (0 != (flags & ZBX_CONFIG_FLAGS_ALERT_USRGRPID))
+		cfg->alert_usrgrpid = config->config->alert_usrgrpid;
+
+	if (0 != (flags & ZBX_CONFIG_FLAGS_PROXY_SECRETS_PROVIDER))
+		cfg->proxy_secrets_provider = config->config->proxy_secrets_provider;
+
 	UNLOCK_CACHE;
 
 	cfg->flags = flags;
@@ -13917,7 +13650,7 @@ void	zbx_config_get(zbx_config_t *cfg, zbx_uint64_t flags)
  *                                  disabled, enabled or partitioning         *
  *                                                                            *
  ******************************************************************************/
-void	zbx_config_get_hk_mode(unsigned char *history_mode, unsigned char *trends_mode)
+void	zbx_config_get_hk_mode(int *history_mode, int *trends_mode)
 {
 	RDLOCK_CACHE;
 	*history_mode = config->config->hk.history_mode;
@@ -13971,6 +13704,8 @@ void	zbx_config_clean(zbx_config_t *cfg)
  ********************************************************************************/
 int	zbx_dc_reset_interfaces_availability(zbx_vector_availability_ptr_t *interfaces)
 {
+/* the tolerance interval must be greater than maximum proxy failover delay  */
+/* to avoid triggering false interface availability resets with proxy groups */
 #define ZBX_INTERFACE_MOVE_TOLERANCE_INTERVAL	(10 * SEC_PER_MIN)
 #define ZBX_INTERFACE_VERSION_RESET_INTERVAL	(SEC_PER_HOUR)
 
@@ -15504,7 +15239,7 @@ static void	zbx_gather_item_tags(ZBX_DC_ITEM *item, zbx_vector_item_tag_t *item_
 {
 	for (int i = 0; i < item->tags.values_num; i++)
 	{
-		zbx_dc_item_tag_t	*dc_tag = item->tags.values[i];
+		zbx_dc_item_tag_t	*dc_tag = &item->tags.values[i];
 		zbx_item_tag_t		*tag = (zbx_item_tag_t *) zbx_malloc(NULL, sizeof(zbx_item_tag_t));
 
 		tag->tag.tag = zbx_strdup(NULL, dc_tag->tag);
@@ -16315,6 +16050,14 @@ static const zbx_um_cache_t	*dc_um_get_cache(const zbx_dc_um_handle_t *um_handle
  * Comments: Closing the last opened handle within process will release locked*
  *           user macro cache in the configuration cache.                     *
  *                                                                            *
+ *           NOTE: closing of handles must be done in REVERSE ORDER of        *
+ *           opening them.                                                    *
+ *           Pay attention when multiple handles are opened at the same time  *
+ *           (e.g. in one function) using                                     *
+ *           zbx_dc_open_user_macros(),                                       *
+ *           zbx_dc_open_user_macros_secure() and                             *
+ *           zbx_dc_open_user_macros_masked().                                *
+ *                                                                            *
  ******************************************************************************/
 void	zbx_dc_close_user_macros(zbx_dc_um_handle_t *um_handle)
 {
@@ -16419,6 +16162,38 @@ out:
 
 /******************************************************************************
  *                                                                            *
+ * Purpose: expand user and func macros in specified text value from itemid   *
+ *                                                                            *
+ * Parameters: itemid     - [IN]                                              *
+ *             replace_to - [IN/OUT] text value with macros to expand         *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dc_expand_user_and_func_macros_itemid(zbx_uint64_t itemid, char **replace_to)
+{
+	zbx_dc_item_t	dc_item;
+	int		ret = FAIL, errcode;
+
+	zbx_dc_config_get_items_by_itemids(&dc_item, &itemid, &errcode, 1);
+
+	if (SUCCEED == errcode)
+	{
+		zbx_dc_um_handle_t	*um_handle;
+
+		um_handle = zbx_dc_open_user_macros();
+
+		(void)zbx_dc_expand_user_and_func_macros(um_handle, replace_to, &dc_item.host.hostid, 1, NULL);
+
+		zbx_dc_close_user_macros(um_handle);
+		ret = SUCCEED;
+	}
+
+	zbx_dc_config_clean_items(&dc_item, &errcode, 1);
+
+	return ret;
+}
+
+/******************************************************************************
+ *                                                                            *
  * Purpose: expand user and func macros in the specified text value           *
  *                                                                            *
  * Parameters: um_cache    - [IN] the user macro cache                        *
@@ -16426,16 +16201,15 @@ out:
  *             hostids     - [IN] an array of host identifiers                *
  *             hostids_num - [IN] the number of host identifiers              *
  *             env         - [IN] security environment                        *
- *             error       - [OUT] the error message                          *
  *                                                                            *
  ******************************************************************************/
-int	zbx_dc_expand_user_and_func_macros_from_cache(zbx_um_cache_t *um_cache, char **text,
-		const zbx_uint64_t *hostids, int hostids_num, unsigned char env, char **error)
+void	zbx_dc_expand_user_and_func_macros_from_cache(zbx_um_cache_t *um_cache, char **text,
+		const zbx_uint64_t *hostids, int hostids_num, unsigned char env)
 {
 	/* wrap the passed user macro and func macro cache into user macro handle structure */
 	zbx_dc_um_handle_t	um_handle = {.cache = &um_cache, .macro_env = env, .prev = NULL};
 
-	return zbx_dc_expand_user_and_func_macros(&um_handle, text, hostids, hostids_num, error);
+	(void)zbx_dc_expand_user_and_func_macros(&um_handle, text, hostids, hostids_num, NULL);
 }
 
 typedef struct
@@ -17317,4 +17091,64 @@ int	zbx_dc_get_itservices_num(void)
 	UNLOCK_CACHE;
 
 	return num;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: get proxy version from cache                                      *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dc_get_proxy_version(zbx_uint64_t proxyid)
+{
+	ZBX_DC_PROXY	*dc_proxy;
+	int		version;
+
+	RDLOCK_CACHE;
+
+	if (NULL != (dc_proxy = (ZBX_DC_PROXY *)zbx_hashset_search(&config->proxies, &proxyid)))
+		version = dc_proxy->version_int;
+	else
+		version = 0;
+
+	UNLOCK_CACHE;
+
+	return version;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: update sync_status in configuration cache                         *
+ *                                                                            *
+ ******************************************************************************/
+void	zbx_dc_sync_unlock(void)
+{
+	WRLOCK_CACHE;
+	config->sync_status = ZBX_DB_SYNC_STATUS_UNLOCKED;
+	UNLOCK_CACHE;
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: get sync_status in configuration cache                            *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_dc_sync_lock(void)
+{
+	int	ret;
+
+	WRLOCK_CACHE;
+
+	if (ZBX_DB_SYNC_STATUS_UNLOCKED != config->sync_status)
+	{
+		ret = FAIL;
+	}
+	else
+	{
+		config->sync_status = ZBX_DB_SYNC_STATUS_LOCKED;
+		ret = SUCCEED;
+	}
+
+	UNLOCK_CACHE;
+
+	return ret;
 }

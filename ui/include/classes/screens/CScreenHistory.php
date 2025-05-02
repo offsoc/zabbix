@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -456,9 +456,7 @@ class CScreenHistory extends CScreenBase {
 						['field' => 'ns', 'order' => ZBX_SORT_DOWN]
 					]);
 
-					$table_header[] = (new CSpan($item['name']))
-						->addClass(ZBX_STYLE_TEXT_VERTICAL)
-						->setTitle($item['name']);
+					$table_header[] = (new CVertical($item['name']))->setTitle($item['name']);
 					$history_data_index = 0;
 
 					foreach ($item_data as $item_data_row) {

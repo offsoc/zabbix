@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -16,7 +16,7 @@ package zbxcmd
 
 import "time"
 
-//MaxExecuteOutputLenB maximum output length for Execute and ExecuteStrict in bytes.
+// MaxExecuteOutputLenB maximum output length for Execute and ExecuteStrict in bytes.
 const MaxExecuteOutputLenB = 16 * 1024 * 1024
 
 // Execute runs the 's' command without checking cmd.Wait error.

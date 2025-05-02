@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -25,7 +25,19 @@ class CWidgetGeoMap extends CWidget {
 	static SEVERITY_HIGH = 4;
 	static SEVERITY_DISASTER = 5;
 
-	#selected_hostid = '';
+	/**
+	 * Geomap's data from response.
+	 *
+	 * @type {Object|null}
+	 */
+	#geomap = null;
+
+	/**
+	 * ID of selected host
+	 *
+	 * @type {string|null}
+	 */
+	#selected_hostid = null;
 
 	onInitialize() {
 		this._map = null;
@@ -63,16 +75,63 @@ class CWidgetGeoMap extends CWidget {
 			super.setContents(response);
 		}
 
-		if (response.geomap !== undefined) {
-			if (response.geomap.config !== undefined) {
-				this._initMap(response.geomap.config);
-			}
+		if (response.geomap === undefined) {
+			this._initial_load = false;
+			return;
+		}
 
-			this._addMarkers(response.geomap.hosts);
+		this.#geomap = response.geomap;
+
+		if (this.#geomap.config !== undefined) {
+			this._initMap(this.#geomap.config);
+		}
+
+		this._addMarkers(this.#geomap.hosts);
+
+		if (!this.hasEverUpdated() && this.isReferred()) {
+			this.#selected_hostid = this.#getDefaultSelectable();
+
+			if (this.#selected_hostid !== null) {
+				this.#updateHintboxes();
+				this.#updateMarkers();
+				this.#broadcast();
+			}
+		}
+		else if (this.#selected_hostid !== null) {
+			this.#updateHintboxes();
 			this.#updateMarkers();
 		}
 
 		this._initial_load = false;
+	}
+
+	#broadcast() {
+		this.broadcast({
+			[CWidgetsData.DATA_TYPE_HOST_ID]: [this.#selected_hostid],
+			[CWidgetsData.DATA_TYPE_HOST_IDS]: [this.#selected_hostid]
+		});
+	}
+
+	#getDefaultSelectable() {
+		return this.#geomap.hosts.length > 0
+			? this.#getClosestHost(this.#geomap.config, this.#geomap.hosts).properties.hostid
+			: null;
+	}
+
+	onReferredUpdate() {
+		if (this.#geomap === null) {
+			return;
+		}
+
+		if (this.#selected_hostid === null) {
+			this.#selected_hostid = this.#getDefaultSelectable();
+
+			if (this.#selected_hostid !== null) {
+				this.#updateHintboxes();
+				this.#updateMarkers();
+				this.#broadcast();
+			}
+		}
 	}
 
 	_addMarkers(hosts) {
@@ -177,10 +236,10 @@ class CWidgetGeoMap extends CWidget {
 			hintbox.style.maxHeight = `${node.getBoundingClientRect().top - 27}px`;
 			hintbox.append(this.makePopupContent(cluster.layer.getAllChildMarkers().map(o => o.feature)));
 
-			node.hintBoxItem = hintBox.createBox(e, node, hintbox, '', true);
+			node.hintBoxItem = hintBox.createBox(cluster.originalEvent, node, hintbox, '', true);
 
 			// Adjust hintbox size in case if scrollbar is necessary.
-			hintBox.positionElement(e, node, node.hintBoxItem);
+			hintBox.positionElement(cluster.originalEvent, node, node.hintBoxItem);
 
 			// Center hintbox relative to node.
 			node.hintBoxItem.position({
@@ -195,9 +254,13 @@ class CWidgetGeoMap extends CWidget {
 		});
 
 		this._markers.on('click keypress', (e) => {
-			const node = e.originalEvent.srcElement;
+			this.#selected_hostid = e.layer.feature.properties.hostid;
 
-			this.#selectHost(e.layer.feature.properties.hostid);
+			this.#updateHintboxes();
+			this.#updateMarkers();
+			this.#broadcast();
+
+			const node = e.originalEvent.srcElement;
 
 			if ('hintBoxItem' in node) {
 				return;
@@ -207,6 +270,7 @@ class CWidgetGeoMap extends CWidget {
 				if (e.originalEvent.key !== ' ' && e.originalEvent.key !== 'Enter') {
 					return;
 				}
+
 				e.originalEvent.preventDefault();
 			}
 
@@ -215,11 +279,11 @@ class CWidgetGeoMap extends CWidget {
 			hintbox.style.maxHeight = `${node.getBoundingClientRect().top - 27}px`;
 			hintbox.append(this.makePopupContent([e.layer.feature]));
 
-			node.hintBoxItem = hintBox.createBox(e, node, hintbox, '', true);
+			node.hintBoxItem = hintBox.createBox(e.originalEvent, node, hintbox, '', true);
 			e.layer.hintBoxItem = node.hintBoxItem;
 
 			// Adjust hintbox size in case if scrollbar is necessary.
-			hintBox.positionElement(e, node, node.hintBoxItem);
+			hintBox.positionElement(e.originalEvent, node, node.hintBoxItem);
 
 			// Center hintbox relative to node.
 			node.hintBoxItem.position({
@@ -286,11 +350,32 @@ class CWidgetGeoMap extends CWidget {
 	}
 
 	/**
+	 * Get the closest host to the map center defined in the config.
+	 *
+	 * @param {Object}        config
+	 * @param {Array<Object>} hosts
+	 *
+	 * @returns {Object}
+	 */
+	#getClosestHost(config, hosts) {
+		const center_point = L.latLng(config.center.latitude, config.center.longitude);
+
+		return hosts.reduce((closest, current) => {
+			const current_point = L.latLng(current.geometry.coordinates[1], current.geometry.coordinates[0]);
+			const closest_point = L.latLng(closest.geometry.coordinates[1], closest.geometry.coordinates[0]);
+
+			return current_point.distanceTo(center_point) < closest_point.distanceTo(center_point)
+				? current
+				: closest;
+		});
+	}
+
+	/**
 	 * Update style for selected marker and cluster and broadcast _hostid.
 	 *
 	 * @param {string} hostid
 	 */
-	#selectHost(hostid) {
+	#broadcastSelected(hostid) {
 		this.#selected_hostid = hostid;
 
 		this.broadcast({
@@ -373,26 +458,27 @@ class CWidgetGeoMap extends CWidget {
 		});
 
 		// Transform 'clusterclick' event as 'cluster.click' and 'cluster.dblclick' events.
-		clusters.on('clusterclick clusterkeypress', (c) => {
-			if (c.type === 'clusterkeypress') {
-				if (c.originalEvent.key !== ' ' && c.originalEvent.key !== 'Enter') {
+		clusters.on('clusterclick clusterkeypress', (e) => {
+			if (e.type === 'clusterkeypress') {
+				if (e.originalEvent.key !== ' ' && e.originalEvent.key !== 'Enter') {
 					return;
 				}
-				c.originalEvent.preventDefault();
+
+				e.originalEvent.preventDefault();
 			}
 
 			if ('event_click' in clusters) {
 				clearTimeout(clusters.event_click);
 				delete clusters.event_click;
 				this._map.getContainer().dispatchEvent(
-					new CustomEvent('cluster.dblclick', {detail: c})
+					new CustomEvent('cluster.dblclick', {detail: e})
 				);
 			}
 			else {
 				clusters.event_click = setTimeout(() => {
 					delete clusters.event_click;
 					this._map.getContainer().dispatchEvent(
-						new CustomEvent('cluster.click', {detail: c})
+						new CustomEvent('cluster.click', {detail: e})
 					);
 				}, 300);
 			}
@@ -563,7 +649,11 @@ class CWidgetGeoMap extends CWidget {
 				const hostid = row.dataset.hostid;
 
 				if (hostid !== undefined) {
-					this.#selectHost(hostid);
+					this.#selected_hostid = hostid;
+
+					this.#updateHintboxes();
+					this.#updateMarkers();
+					this.#broadcast();
 				}
 			}
 		});
@@ -635,5 +725,9 @@ class CWidgetGeoMap extends CWidget {
 			this._map.severityFilterControl.close();
 			this._map.severityFilterControl.disable();
 		}
+	}
+
+	hasPadding() {
+		return false;
 	}
 }

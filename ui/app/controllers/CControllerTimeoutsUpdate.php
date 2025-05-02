@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,22 +18,22 @@ class CControllerTimeoutsUpdate extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'timeout_zabbix_agent' =>		'required|not_empty|db config.timeout_zabbix_agent',
-			'timeout_simple_check' =>		'required|not_empty|db config.timeout_simple_check',
-			'timeout_snmp_agent' =>			'required|not_empty|db config.timeout_snmp_agent',
-			'timeout_external_check' =>		'required|not_empty|db config.timeout_external_check',
-			'timeout_db_monitor' =>			'required|not_empty|db config.timeout_db_monitor',
-			'timeout_http_agent' =>			'required|not_empty|db config.timeout_http_agent',
-			'timeout_ssh_agent' =>			'required|not_empty|db config.timeout_ssh_agent',
-			'timeout_telnet_agent' =>		'required|not_empty|db config.timeout_telnet_agent',
-			'timeout_script' =>				'required|not_empty|db config.timeout_script',
-			'timeout_browser' =>			'required|not_empty|db config.timeout_browser',
-			'socket_timeout' =>				'required|not_empty|db config.socket_timeout|time_unit 1:300',
-			'connect_timeout' =>			'required|not_empty|db config.connect_timeout|time_unit 1:30',
-			'media_type_test_timeout' =>	'required|not_empty|db config.media_type_test_timeout|time_unit 1:300',
-			'script_timeout' =>				'required|not_empty|db config.script_timeout|time_unit 1:300',
-			'item_test_timeout' =>			'required|not_empty|db config.item_test_timeout|time_unit 1:600',
-			'report_test_timeout' =>		'required|not_empty|db config.report_test_timeout|time_unit 1:300'
+			'timeout_zabbix_agent' =>		'required|not_empty|setting timeout_zabbix_agent',
+			'timeout_simple_check' =>		'required|not_empty|setting timeout_simple_check',
+			'timeout_snmp_agent' =>			'required|not_empty|setting timeout_snmp_agent',
+			'timeout_external_check' =>		'required|not_empty|setting timeout_external_check',
+			'timeout_db_monitor' =>			'required|not_empty|setting timeout_db_monitor',
+			'timeout_http_agent' =>			'required|not_empty|setting timeout_http_agent',
+			'timeout_ssh_agent' =>			'required|not_empty|setting timeout_ssh_agent',
+			'timeout_telnet_agent' =>		'required|not_empty|setting timeout_telnet_agent',
+			'timeout_script' =>				'required|not_empty|setting timeout_script',
+			'timeout_browser' =>			'required|not_empty|setting timeout_browser',
+			'socket_timeout' =>				'required|time_unit 1:300',
+			'connect_timeout' =>			'required|time_unit 1:30',
+			'media_type_test_timeout' =>	'required|time_unit 1:300',
+			'script_timeout' =>				'required|time_unit 1:300',
+			'item_test_timeout' =>			'required|time_unit 1:600',
+			'report_test_timeout' =>		'required|time_unit 1:300'
 		];
 
 		$ret = $this->validateInput($fields);

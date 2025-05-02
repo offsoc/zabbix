@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -159,6 +159,7 @@ class CDocHelper {
 	const USERS_USERGROUP_EDIT =								'config/users_and_usergroups/usergroup#configuration';
 	const USERS_USERGROUP_LIST =								'web_interface/frontend_sections/users/user_groups';
 	const USERS_USERPROFILE_EDIT =								'web_interface/user_profile#user-profile';
+	const USERS_USERPROFILE_NOTIFICATION_EDIT =					'web_interface/user_profile#notifications';
 	const USERS_USERROLE_EDIT =									'web_interface/frontend_sections/users/user_roles#default-user-roles';
 	const USERS_USERROLE_LIST =									'web_interface/frontend_sections/users/user_roles';
 

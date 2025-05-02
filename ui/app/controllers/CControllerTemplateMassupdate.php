@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -91,7 +91,7 @@ class CControllerTemplateMassupdate extends CControllerPopupMassupdateAbstract {
 				}
 			);
 
-			$result = true;
+			$result = false;
 
 			try {
 				DBstart();
@@ -157,7 +157,9 @@ class CControllerTemplateMassupdate extends CControllerPopupMassupdateAbstract {
 							}
 
 							if ($ins_groups) {
-								if (!$result = API::TemplateGroup()->create($ins_groups)) {
+								$result = API::TemplateGroup()->create($ins_groups);
+
+								if (!$result) {
 									throw new Exception();
 								}
 
@@ -333,7 +335,9 @@ class CControllerTemplateMassupdate extends CControllerPopupMassupdateAbstract {
 				}
 				unset($template);
 
-				if (!API::Template()->update($templates)) {
+				$result = (bool) API::Template()->update($templates);
+
+				if (!$result) {
 					throw new Exception();
 				}
 
@@ -349,7 +353,7 @@ class CControllerTemplateMassupdate extends CControllerPopupMassupdateAbstract {
 				);
 			}
 
-			DBend($result);
+			$result = DBend($result);
 
 			if ($result) {
 				$output = [

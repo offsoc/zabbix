@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -85,7 +85,7 @@ class CDashboardHelper {
 					],
 					'rf_rate' => 0,
 					'fields' => [],
-					'messages' => []
+					'is_configured' => true
 				];
 
 				/** @var CWidget $widget */
@@ -94,7 +94,9 @@ class CDashboardHelper {
 				if ($widget !== null && $widget->getType() === CModule::TYPE_WIDGET) {
 					$form = $widget->getForm(self::constructWidgetFields($widget_data['fields']), $templateid);
 
-					$prepared_widget['messages'] = $form->validate();
+					$messages = $form->validate();
+
+					$prepared_widget['is_configured'] = !$messages;
 					$prepared_widget['fields'] = $form->getFieldsValues();
 
 					if ($with_rf_rate) {
@@ -493,7 +495,7 @@ class CDashboardHelper {
 	 *
 	 * @return array  Widgets and/or errors.
 	 */
-	public static function validateDashboardPages(array $dashboard_pages, string $templateid = null): array {
+	public static function validateDashboardPages(array $dashboard_pages, ?string $templateid = null): array {
 		$errors = [];
 
 		foreach ($dashboard_pages as $dashboard_page_index => &$dashboard_page) {

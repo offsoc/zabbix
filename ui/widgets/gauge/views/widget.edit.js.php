@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,7 +18,7 @@ use Widgets\Gauge\Widget;
 
 ?>
 
-window.widget_gauge_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	/**
 	 * @type {HTMLFormElement}
@@ -26,7 +26,7 @@ window.widget_gauge_form = new class {
 	#form;
 
 	init({thresholds_colors}) {
-		this.#form = document.getElementById('widget-dialogue-form');
+		this.#form = this.getForm();
 
 		this.#form.addEventListener('change', () => this.#updateForm());
 
@@ -40,7 +40,7 @@ window.widget_gauge_form = new class {
 			}
 		});
 
-		for (const colorpicker of this.#form.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+		for (const colorpicker of this.#form.querySelectorAll(`.${ZBX_STYLE_COLOR_PICKER} input`)) {
 			$(colorpicker).colorpicker({
 				appendTo: '.overlay-dialogue-body',
 				use_default: !colorpicker.name.includes('thresholds')
@@ -50,6 +50,7 @@ window.widget_gauge_form = new class {
 		colorPalette.setThemeColors(thresholds_colors);
 
 		this.#updateForm();
+		this.ready();
 	}
 
 	#updateForm() {

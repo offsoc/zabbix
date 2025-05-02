@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -55,6 +55,11 @@
 		 * @type {boolean}
 		 */
 		#skip_time_selector_range_update = false;
+
+		/**
+		 * @type {number|null}
+		 */
+		#time_selector_toggle_timeout = null;
 
 		init({
 			dashboard,
@@ -160,8 +165,10 @@
 					window.addEventListener('popstate', e => this.#onPopState(e));
 				}
 
+				jQuery.subscribe('timeselector.rangeupdate', (e, data) => this.#onTimeSelectorRangeUpdate(e, data));
+
 				if (CWidgetsData.DATA_TYPE_TIME_PERIOD in broadcast_requirements) {
-					jQuery.subscribe('timeselector.rangeupdate', (e, data) => this.#onTimeSelectorRangeUpdate(e, data));
+					this.#showTimeSelector();
 				}
 
 				if (dashboard.dashboardid === null || clone) {
@@ -180,6 +187,8 @@
 				}
 			}
 
+			ZABBIX.Dashboard.on(CDashboard.EVENT_REFERRED_UPDATE, e => this.#onReferredUpdate(e));
+
 			ZABBIX.Dashboard.on(CDashboard.EVENT_FEEDBACK, e => this.#onFeedback(e));
 
 			ZABBIX.Dashboard.on(DASHBOARD_EVENT_CONFIGURATION_OUTDATED, () => {
@@ -190,18 +199,15 @@
 		}
 
 		#edit() {
-			timeControl.disableAllSBox();
-
 			if (CWidgetsData.DATA_TYPE_HOST_ID in this.#broadcast_requirements
 					|| CWidgetsData.DATA_TYPE_HOST_IDS in this.#broadcast_requirements) {
 				jQuery('#dashboard_hostid').off('change', this.#listeners.onDashboardHostChange);
 			}
 
-			document
-				.querySelectorAll('.filter-space')
-				.forEach((el) => {
-					el.style.display = 'none';
-				});
+			if (!(CWidgetsData.DATA_TYPE_TIME_PERIOD in this.#broadcast_requirements)) {
+				this.#showTimeSelector();
+				this.#toggleTimeSelector(false);
+			}
 
 			clearMessages();
 
@@ -269,8 +275,8 @@
 				headers: {'Content-Type': 'application/json'},
 				body: JSON.stringify(request_data)
 			})
-				.then((response) => response.json())
-				.then((response) => {
+				.then(response => response.json())
+				.then(response => {
 					if ('error' in response) {
 						throw {error: response.error};
 					}
@@ -349,7 +355,12 @@
 		}
 
 		#updateBusy() {
-			document.getElementById('dashboard-save').disabled = this.#is_busy || this.#is_busy_saving;
+			const do_disable = this.#is_busy || this.#is_busy_saving;
+
+			document.getElementById('dashboard-config').disabled = do_disable;
+			document.getElementById('dashboard-add-widget').disabled = do_disable;
+			document.getElementById('dashboard-add').disabled = do_disable;
+			document.getElementById('dashboard-save').disabled = do_disable;
 		}
 
 		#updateHistory(is_new = true)  {
@@ -388,6 +399,47 @@
 			else {
 				history.replaceState(state, '', curl.getUrl());
 			}
+		}
+
+		#showTimeSelector() {
+			const filter = document.querySelector('.filter-space');
+
+			filter.style.display = '';
+
+			$.publish('timeselector.update-ui');
+		}
+
+		#toggleTimeSelector(enable) {
+			const filter = document.querySelector('.filter-space');
+
+			const tabs = jQuery(filter).tabs('instance');
+
+			if (enable) {
+				tabs.enable();
+			}
+			else {
+				tabs
+					.option('active', false)
+					.disable();
+			}
+
+			filter
+				.querySelectorAll('.js-btn-time-left, .<?= ZBX_STYLE_BTN_TIME_ZOOMOUT ?>, .js-btn-time-right')
+				.forEach(button => {
+					if (enable) {
+						button.disabled = button.dataset.cached_disabled === '1';
+					}
+					else {
+						if (button.disabled) {
+							button.dataset.cached_disabled = '1';
+						}
+						else {
+							delete button.dataset.cached_disabled;
+						}
+
+						button.disabled = true;
+					}
+				});
 		}
 
 		#enableNavigationWarning() {
@@ -435,9 +487,10 @@
 			jQuery(e.target).menuPopup(menu, new jQuery.Event(e), {
 				position: {
 					of: e.target,
-					my: 'left top',
-					at: 'left bottom',
-					within: '.wrapper'
+					my: 'right top',
+					at: 'right bottom',
+					within: '.wrapper',
+					collision: 'fit flip'
 				}
 			});
 		}
@@ -462,7 +515,9 @@
 		#onTimeSelectorRangeUpdate(e, data) {
 			this.#dashboard_time_period = data;
 
-			this.#updateHistory(false);
+			if (this.#dashboard.dashboardid !== null && !this.#clone) {
+				this.#updateHistory(false);
+			}
 
 			if (this.#skip_time_selector_range_update) {
 				this.#skip_time_selector_range_update = false;
@@ -482,6 +537,19 @@
 			ZABBIX.Dashboard.broadcast({
 				[CWidgetsData.DATA_TYPE_TIME_PERIOD]: time_period
 			});
+		}
+
+		#onReferredUpdate(e) {
+			if (e.detail.type === CWidgetsData.DATA_TYPE_TIME_PERIOD) {
+				if (this.#time_selector_toggle_timeout !== null) {
+					clearTimeout(this.#time_selector_toggle_timeout);
+				}
+
+				this.#time_selector_toggle_timeout = setTimeout(() => {
+					this.#time_selector_toggle_timeout = null;
+					this.#toggleTimeSelector(e.detail.is_referred);
+				});
+			}
 		}
 
 		#onFeedback(e) {
@@ -520,73 +588,35 @@
 					e.preventDefault();
 					e.returnValue = '';
 				}
-			},
-
-			elementSuccess: e => {
-				const data = e.detail;
-
-				if ('success' in data) {
-					postMessageOk(data.success.title);
-
-					if ('messages' in data.success) {
-						postMessageDetails('success', data.success.messages);
-					}
-				}
-
-				location.href = location.href;
 			}
 		};
 
-		editItem(target, data) {
-			const overlay = PopUp('item.edit', data, {
-				dialogueid: 'item-edit',
-				dialogue_class: 'modal-popup-large',
-				trigger_element: target,
-				prevent_navigation: true
-			});
+		executeNow(target, data) {
+			const curl = new Curl('zabbix.php');
 
-			overlay.$dialogue[0].addEventListener('dialogue.submit', this.#listeners.elementSuccess, {once: true});
-		}
+			curl.setArgument('action', 'item.execute');
 
-		editHost(hostid) {
-			const host_data = {hostid};
+			data[CSRF_TOKEN_NAME] = <?= json_encode(CCsrfTokenHelper::get('item')) ?>;
 
-			this.#openHostPopup(host_data);
-		}
-
-		#openHostPopup(host_data) {
-			const original_url = location.href;
-
-			const overlay = PopUp('popup.host.edit', host_data, {
-				dialogueid: 'host_edit',
-				dialogue_class: 'modal-popup-large',
-				prevent_navigation: true
-			});
-
-			overlay.$dialogue[0].addEventListener('dialogue.submit', this.#listeners.elementSuccess, {once: true});
-			overlay.$dialogue[0].addEventListener('dialogue.close', () => {
-				history.replaceState({}, '', original_url);
-			}, {once: true});
-		}
-
-		editTemplate(parameters) {
-			const overlay = PopUp('template.edit', parameters, {
-				dialogueid: 'templates-form',
-				dialogue_class: 'modal-popup-large',
-				prevent_navigation: true
-			});
-
-			overlay.$dialogue[0].addEventListener('dialogue.submit', this.#listeners.elementSuccess, {once: true});
-		}
-
-		editTrigger(trigger_data) {
-			const overlay = PopUp('trigger.edit', trigger_data, {
-				dialogueid: 'trigger-edit',
-				dialogue_class: 'modal-popup-large',
-				prevent_navigation: true
-			});
-
-			overlay.$dialogue[0].addEventListener('dialogue.submit', this.#listeners.elementSuccess, {once: true});
+			return fetch(curl.getUrl(), {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify(data)
+			})
+				.then(response => response.json())
+				.then(response => {
+					clearMessages();
+					if (response.error) {
+						addMessage(makeMessageBox('bad', response.error.messages, response.error.title))
+					}
+					else {
+						addMessage(makeMessageBox('good', [], response.success.title))
+					}
+				})
+				.catch(() => {
+					clearMessages();
+					addMessage(makeMessageBox('bad', [<?= json_encode(_('Unexpected server error.')) ?>]));
+				});
 		}
 	}
 </script>

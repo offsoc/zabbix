@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,7 +18,7 @@ use Widgets\ProblemsBySv\Widget;
 
 ?>
 
-window.widget_problemsbysv_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	init() {
 		this._show_type = document.getElementById('show_type');
@@ -26,6 +26,8 @@ window.widget_problemsbysv_form = new class {
 			this._show_type.addEventListener('change', () => this.updateForm());
 			this.updateForm();
 		}
+
+		this.ready();
 	}
 
 	updateForm() {

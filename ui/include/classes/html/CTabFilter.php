@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -306,7 +306,7 @@ class CTabFilter extends CDiv {
 		if (array_key_exists('timeselector', $this->options)) {
 			$this
 				->addClass(ZBX_STYLE_FILTER_SPACE)
-				->setAttribute('data-disable-initial-check', 1)
+				->setAttribute('data-manual-setup', 1)
 				->setAttribute('data-accessible', 1)
 				->setAttribute('data-profile-idx', $this->options['idx'])
 				->setAttribute('data-profile-idx2', 0);

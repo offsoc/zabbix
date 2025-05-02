@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -270,6 +270,9 @@ class CApiInputValidator {
 
 			case API_NUMBER:
 				return self::validateNumber($rule, $data, $path, $error);
+
+			case API_SELEMENTID:
+				return self::validateSelementId($rule, $data, $path, $error);
 		}
 
 		// This message can be untranslated because warn about incorrect validation rules at a development stage.
@@ -353,6 +356,7 @@ class CApiInputValidator {
 			case API_PROMETHEUS_PATTERN:
 			case API_PROMETHEUS_LABEL:
 			case API_NUMBER:
+			case API_SELEMENTID:
 				return true;
 
 			case API_OBJECT:
@@ -4354,5 +4358,11 @@ class CApiInputValidator {
 		}
 
 		return self::validateUserMacro($rule, $data, $path, $error);
+	}
+
+	private static function validateSelementId(array $rule, &$data, string $path, string &$error): bool {
+		return is_string($data)
+			? self::checkStringUtf8(API_NOT_EMPTY, $data, $path, $error)
+			: self::validateId([], $data, $path, $error);
 	}
 }

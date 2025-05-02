@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -244,7 +244,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 		if ($is_resource_available) {
 			// Build graph action and data source links.
 			if ($this->fields_values['source_type'] == ZBX_WIDGET_FIELD_RESOURCE_SIMPLE_GRAPH) {
-				if (!$edit_mode && !$this->hasInput('has_custom_time_period')) {
+				if ((!$this->isTemplateDashboard() || $this->fields_values['override_hostid'])
+						&& !$this->hasInput('has_custom_time_period')) {
 					$time_control_data['loadSBox'] = 1;
 				}
 
@@ -325,7 +326,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 						$graph_src = (new CUrl('chart2.php'))->setArgument('graphid', $resourceid);
 					}
 
-					if (!$edit_mode && !$this->hasInput('has_custom_time_period')) {
+					if ((!$this->isTemplateDashboard() || $this->fields_values['override_hostid'])
+							&& !$this->hasInput('has_custom_time_period')) {
 						$time_control_data['loadSBox'] = 1;
 					}
 				}

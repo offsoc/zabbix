@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -265,8 +265,8 @@ class function_convertUnitsTest extends TestCase {
 			[ 'in' => ['value' => '1', 'units' => 's', 'decimals' => 4, 'decimals_exact' => true],				'out' => '1.0000s' ],
 			[ 'in' => ['value' => '0.0012345', 'units' => 's', 'decimals' => 4, 'decimals_exact' => false],		'out' => '1.2345ms' ],
 			[ 'in' => ['value' => '0.0012345', 'units' => 's', 'decimals' => 4, 'decimals_exact' => true],		'out' => '1.2345ms' ],
-			[ 'in' => ['value' => '0.00012345', 'units' => 's', 'decimals' => 4, 'decimals_exact' => false],	'out' => '0.1235ms' ],
-			[ 'in' => ['value' => '0.00012345', 'units' => 's', 'decimals' => 4, 'decimals_exact' => true],		'out' => '0.1235ms' ],
+			[ 'in' => ['value' => '0.00012345001', 'units' => 's', 'decimals' => 4, 'decimals_exact' => false],	'out' => '0.1235ms' ],
+			[ 'in' => ['value' => '0.00012345001', 'units' => 's', 'decimals' => 4, 'decimals_exact' => true],	'out' => '0.1235ms' ],
 			[ 'in' => ['value' => '0.00012', 'units' => 's', 'decimals' => 4, 'decimals_exact' => false],		'out' => '0.12ms' ],
 			[ 'in' => ['value' => '0.00012', 'units' => 's', 'decimals' => 4, 'decimals_exact' => true],		'out' => '0.1200ms' ],
 			[ 'in' => ['value' => '60', 'units' => 's', 'decimals' => 4, 'decimals_exact' => false],			'out' => '1m' ],

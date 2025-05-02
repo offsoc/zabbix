@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -49,5 +49,5 @@ if (!$data['fields']['itemid']->isTemplateDashboard()) {
 		: null
 	)
 	->includeJsFile('widget.edit.js.php')
-	->addJavaScript('widget_graph_form.init();')
+	->initFormJs('widget_form.init();')
 	->show();

@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -876,7 +876,7 @@ class DB {
 	 *
 	 * @return string
 	 */
-	public static function uppercaseField(string $field_name, string $table_name, string $table_alias = null): string {
+	public static function uppercaseField(string $field_name, string $table_name, ?string $table_alias = null): string {
 		if ($table_alias === null) {
 			$table_alias = $table_name;
 		}
@@ -1145,7 +1145,7 @@ class DB {
 	 *
 	 * @return array
 	 */
-	public static function getFilterFields(string $table_name, array $output_fields = null): array {
+	public static function getFilterFields(string $table_name, ?array $output_fields = null): array {
 		$table_schema = self::getSchema($table_name);
 
 		if ($output_fields !== null) {
@@ -1172,7 +1172,7 @@ class DB {
 	 *
 	 * @return array
 	 */
-	public static function getSearchFields(string $table_name, array $output_fields = null): array {
+	public static function getSearchFields(string $table_name, ?array $output_fields = null): array {
 		$table_schema = self::getSchema($table_name);
 
 		if ($output_fields !== null) {

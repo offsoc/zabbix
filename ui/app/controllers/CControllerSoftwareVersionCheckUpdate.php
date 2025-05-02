@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -135,10 +135,8 @@ class CControllerSoftwareVersionCheckUpdate extends CController {
 			'versions' => $versions
 		]];
 
-		$delay = CSettings::updatePrivate($settings) ? $delay : self::NEXTCHECK_DELAY_ON_FAIL;
-
 		$output = [
-			'delay' => $delay + random_int(1, SEC_PER_MIN)
+			'delay' => CSettings::updatePrivate($settings) ? $delay : self::NEXTCHECK_DELAY_ON_FAIL
 		];
 
 		if ($errors = array_column(get_and_clear_messages(), 'message')) {

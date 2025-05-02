@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,9 +14,9 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../behaviors/CTableBehavior.php';
 
 /**
  * @backup sla
@@ -70,8 +70,10 @@ class testFormServicesSla extends CWebTest {
 		];
 		$form->checkValue($default_values);
 
-		// Note that count of available timezones may differ based on the local environment configuration.
-		$this->assertEquals(420, count($form->getField('Time zone')->getOptions()->asText()));
+		// Note that count of available timezones may differ based on the local environment configuration and php version.
+		$timezones = $form->getField('Time zone')->getOptions()->asText();
+		$this->assertGreaterThan(415, count($timezones));
+		$this->assertContains(CDateTimeHelper::getTimeZoneFormat('Europe/Riga'), $timezones);
 
 		// Check that mandatory fields are marked accordingly.
 		foreach (['Name', 'SLO', 'Effective date', 'Service tags'] as $sla_label) {
@@ -1125,7 +1127,7 @@ class testFormServicesSla extends CWebTest {
 						$downtimes_form = COverlayDialogElement::find()->all()->last()->waitUntilReady()->asForm();
 
 						$downtimes_form->checkValue($downtime);
-						$downtimes_form->submit();
+						$downtimes_form->submit()->waitUntilNotVisible();
 					}
 				}
 				else {

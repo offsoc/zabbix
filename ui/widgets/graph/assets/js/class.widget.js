@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -145,7 +145,9 @@ class CWidgetGraph extends CWidget {
 					.getDashboardPage(this._dashboard_page.unique_id)
 					.getWidget(descriptor.sender_unique_id);
 
-				has_custom_time_period = graph_prototype_widget.hasCustomTimePeriod();
+				if (!(graph_prototype_widget instanceof CWidgetMisconfigured)) {
+					has_custom_time_period = graph_prototype_widget.hasCustomTimePeriod();
+				}
 			}
 			else {
 				has_custom_time_period = false;

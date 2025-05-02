@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -15,7 +15,7 @@
 ?>
 
 
-window.widget_problems_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	init({sort_with_enabled_show_timeline}) {
 		this._sort_with_enabled_show_timeline = sort_with_enabled_show_timeline;
@@ -33,6 +33,7 @@ window.widget_problems_form = new class {
 		this._acknowledge_status.addEventListener('change', () => this.updateForm());
 
 		this.updateForm();
+		this.ready();
 	}
 
 	updateForm() {

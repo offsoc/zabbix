@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -18,24 +18,24 @@ class CControllerHousekeepingUpdate extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'hk_trends'				=> 'db config.hk_trends|time_unit 0,'.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_trends_global'		=> 'db config.hk_trends_global|in 1',
-			'hk_trends_mode'		=> 'db config.hk_trends_mode',
-			'hk_history'			=> 'db config.hk_history|time_unit 0,'.implode(':', [SEC_PER_HOUR, 25 * SEC_PER_YEAR]),
-			'hk_history_global'		=> 'db config.hk_history_global|in 1',
-			'hk_history_mode'		=> 'db config.hk_history_mode',
-			'hk_sessions'			=> 'db config.hk_sessions|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_sessions_mode'		=> 'db config.hk_sessions_mode|in 1',
-			'hk_services'			=> 'db config.hk_services|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_services_mode'		=> 'db config.hk_services_mode|in 1',
-			'hk_events_autoreg'		=> 'db config.hk_events_autoreg|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_events_discovery'	=> 'db config.hk_events_discovery|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_events_internal'	=> 'db config.hk_events_internal|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_events_trigger'		=> 'db config.hk_events_trigger|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_events_service'		=> 'db config.hk_events_service|time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
-			'hk_events_mode'		=> 'db config.hk_events_mode|in 1',
-			'compression_status'	=> 'db config.compression_status|in 1',
-			'compress_older'		=> 'db config.compress_older|time_unit '.implode(':', [7 * SEC_PER_DAY, 25 * SEC_PER_YEAR])
+			'hk_trends'				=> 'time_unit 0,'.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_trends_global'		=> 'in 1',
+			'hk_trends_mode'		=> 'setting hk_trends_mode',
+			'hk_history'			=> 'time_unit 0,'.implode(':', [SEC_PER_HOUR, 25 * SEC_PER_YEAR]),
+			'hk_history_global'		=> 'in 1',
+			'hk_history_mode'		=> 'setting hk_history_mode',
+			'hk_sessions'			=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_sessions_mode'		=> 'in 1',
+			'hk_services'			=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_services_mode'		=> 'in 1',
+			'hk_events_autoreg'		=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_events_discovery'	=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_events_internal'	=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_events_trigger'		=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_events_service'		=> 'time_unit '.implode(':', [SEC_PER_DAY, 25 * SEC_PER_YEAR]),
+			'hk_events_mode'		=> 'in 1',
+			'compression_status'	=> 'in 1',
+			'compress_older'		=> 'time_unit '.implode(':', [7 * SEC_PER_DAY, 25 * SEC_PER_YEAR])
 		];
 
 		$ret = $this->validateInput($fields);
@@ -44,9 +44,7 @@ class CControllerHousekeepingUpdate extends CController {
 			switch ($this->getValidationError()) {
 				case self::VALIDATION_ERROR:
 					$response = new CControllerResponseRedirect(
-						(new CUrl('zabbix.php'))
-							->setArgument('action', 'housekeeping.edit')
-							->getUrl()
+						(new CUrl('zabbix.php'))->setArgument('action', 'housekeeping.edit')
 					);
 					$response->setFormData($this->getInputAll() + [
 						'hk_events_mode' => '0',
@@ -117,7 +115,7 @@ class CControllerHousekeepingUpdate extends CController {
 
 						if ($hk[CHousekeepingHelper::COMPRESSION_STATUS] == 1) {
 							$hk[CHousekeepingHelper::COMPRESS_OLDER] = $this->getInput('compress_older',
-								DB::getDefault('config', 'compress_older')
+								CSettingsSchema::getDefault('compress_older')
 							);
 						}
 					}

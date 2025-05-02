@@ -4,10 +4,23 @@
 ## Overview
 
 This template is designed for the effortless deployment of AWS monitoring by Zabbix via HTTP and doesn't require any external scripts.
+- Currently, the template supports the discovery of EC2 and RDS instances, ECS clusters, ELB, Lambda and S3 buckets.
+
+## Included Monitoring Templates
+
+- *AWS EC2 by HTTP*
+- *AWS ECS Cluster by HTTP*
+- *AWS ECS Serverless Cluster by HTTP*
+- *AWS ELB Application Load Balancer by HTTP*
+- *AWS ELB Network Load Balancer by HTTP*
+- *AWS Lambda by HTTP*
+- *AWS RDS instance by HTTP*
+- *AWS S3 bucket by HTTP*
+- *AWS Cost Explorer by HTTP*
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -16,13 +29,15 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
 Before using the template, you need to create an IAM policy for the Zabbix role in your AWS account with the necessary permissions.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect metrics.
+
 ```json
 {
     "Version": "2012-10-17",
@@ -54,7 +69,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
 }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume Role Authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -93,7 +120,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -108,7 +138,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, add the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -147,7 +181,10 @@ If you are using role-based authorization, add the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -166,15 +203,12 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 To gather Request metrics, enable [Requests metrics](https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudwatch-monitoring.html) on your Amazon S3 buckets from the AWS console.
 
 Set the macros: `{$AWS.AUTH_TYPE}`. Possible values: `access_key`, `assume_role`, `role_base`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
 
@@ -190,7 +224,6 @@ Additional information about the metrics and used API methods:
 * [Full metrics list related to ELB ALB](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-cloudwatch-metrics.html)
 * [DescribeAlarms API method](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html)
 * [DescribeVolumes API method](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html)
-* [DescribeAlarms API method](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html)
 * [DescribeLoadBalancers API method](https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_DescribeLoadBalancers.html)
 
 
@@ -291,7 +324,7 @@ Additional information about metrics and used API methods:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -300,7 +333,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -308,7 +341,9 @@ The template get AWS EC2 and attached AWS EBS volumes metrics and uses the scrip
 
 Before using the template, you need to create an IAM policy with the necessary permissions for the Zabbix role in your AWS account.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect Amazon EC2 metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -324,8 +359,20 @@ Add the following required permissions to your Zabbix IAM policy in order to col
         }
     ]
   }
-  ```
+```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume Role Authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -347,7 +394,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -362,7 +412,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -387,7 +441,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -406,15 +463,12 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 For more information, see the [EC2 policies](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-iam.html) on the AWS website.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, `{$AWS.EC2.INSTANCE.ID}`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about manage access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys)
 
@@ -484,16 +538,16 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.alarms.check))>0`|Warning||
-|Failed to get volumes info|<p>Failed to get CloudWatch volumes for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.volumes.check))>0`|Warning||
-|Instance CPU Credit balance is too low|<p>The number of earned CPU credits has been less than {$AWS.EC2.CPU.CREDIT.BALANCE.MIN.WARN} in the last 5 minutes.</p>|`max(/AWS EC2 by HTTP/aws.ec2.cpu.credit_balance,5m)<{$AWS.EC2.CPU.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|Instance has spent too many CPU surplus credits|<p>The number of spent surplus credits that are not paid down and which thus incur an additional charge is over {$AWS.EC2.CPU.CREDIT.SURPLUS.BALANCE.MAX.WARN}.</p>|`last(/AWS EC2 by HTTP/aws.ec2.cpu.surplus_credit_charged)>{$AWS.EC2.CPU.CREDIT.SURPLUS.BALANCE.MAX.WARN}`|Warning||
-|High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS EC2 by HTTP/aws.ec2.cpu_utilization,15m)>{$AWS.EC2.CPU.UTIL.WARN.MAX}`|Warning||
-|Byte Credit balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.byte_balance,5m)<{$AWS.EBS.BYTE.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|I/O Credit balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.io_balance,5m)<{$AWS.EBS.IO.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|Instance status check failed|<p>These checks detect problems that require your involvement to repair.<br>The following are examples of problems that can cause instance status checks to fail:<br><br>Failed system status checks<br>Incorrect networking or startup configuration<br>Exhausted memory<br>Corrupted file system<br>Incompatible kernel</p>|`last(/AWS EC2 by HTTP/aws.ec2.status_check_failed_instance)=1`|Average||
-|System status check failed|<p>These checks detect underlying problems with your instance that require AWS involvement to repair.<br>The following are examples of problems that can cause system status checks to fail:<br><br>Loss of network connectivity<br>Loss of system power<br>Software issues on the physical host<br>Hardware issues on the physical host that impact network reachability</p>|`last(/AWS EC2 by HTTP/aws.ec2.status_check_failed_system)=1`|Average||
+|AWS EC2: Failed to get metrics data|<p>Failed to get CloudWatch metrics for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.metrics.check))>0`|Warning||
+|AWS EC2: Failed to get alarms data|<p>Failed to get CloudWatch alarms for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.alarms.check))>0`|Warning||
+|AWS EC2: Failed to get volumes info|<p>Failed to get CloudWatch volumes for EC2.</p>|`length(last(/AWS EC2 by HTTP/aws.ec2.volumes.check))>0`|Warning||
+|AWS EC2: Instance CPU Credit balance is too low|<p>The number of earned CPU credits has been less than {$AWS.EC2.CPU.CREDIT.BALANCE.MIN.WARN} in the last 5 minutes.</p>|`max(/AWS EC2 by HTTP/aws.ec2.cpu.credit_balance,5m)<{$AWS.EC2.CPU.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS EC2: Instance has spent too many CPU surplus credits|<p>The number of spent surplus credits that are not paid down and which thus incur an additional charge is over {$AWS.EC2.CPU.CREDIT.SURPLUS.BALANCE.MAX.WARN}.</p>|`last(/AWS EC2 by HTTP/aws.ec2.cpu.surplus_credit_charged)>{$AWS.EC2.CPU.CREDIT.SURPLUS.BALANCE.MAX.WARN}`|Warning||
+|AWS EC2: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS EC2 by HTTP/aws.ec2.cpu_utilization,15m)>{$AWS.EC2.CPU.UTIL.WARN.MAX}`|Warning||
+|AWS EC2: Byte Credit balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.byte_balance,5m)<{$AWS.EBS.BYTE.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS EC2: I/O Credit balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.io_balance,5m)<{$AWS.EBS.IO.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS EC2: Instance status check failed|<p>These checks detect problems that require your involvement to repair.<br>The following are examples of problems that can cause instance status checks to fail:<br><br>Failed system status checks<br>Incorrect networking or startup configuration<br>Exhausted memory<br>Corrupted file system<br>Incompatible kernel</p>|`last(/AWS EC2 by HTTP/aws.ec2.status_check_failed_instance)=1`|Average||
+|AWS EC2: System status check failed|<p>These checks detect underlying problems with your instance that require AWS involvement to repair.<br>The following are examples of problems that can cause system status checks to fail:<br><br>Loss of network connectivity<br>Loss of system power<br>Software issues on the physical host<br>Hardware issues on the physical host that impact network reachability</p>|`last(/AWS EC2 by HTTP/aws.ec2.status_check_failed_system)=1`|Average||
 
 ### LLD rule Instance Alarms discovery
 
@@ -513,8 +567,8 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS EC2 by HTTP/aws.ec2.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS EC2 by HTTP/aws.ec2.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS EC2 by HTTP/aws.ec2.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS EC2: [{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS EC2 by HTTP/aws.ec2.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS EC2 by HTTP/aws.ec2.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS EC2: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS EC2 by HTTP/aws.ec2.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Instance Volumes discovery
 
@@ -549,8 +603,8 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Volume [{#VOLUME_ID}] has 'error' state||`last(/AWS EC2 by HTTP/aws.ec2.ebs.status["{#VOLUME_ID}"])=5`|Warning||
-|Burst balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.volume.burst_balance["{#VOLUME_ID}"],5m)<{$AWS.EBS.BURST.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS EC2: Volume [{#VOLUME_ID}] has 'error' state||`last(/AWS EC2 by HTTP/aws.ec2.ebs.status["{#VOLUME_ID}"])=5`|Warning||
+|AWS EC2: Burst balance is too low||`max(/AWS EC2 by HTTP/aws.ec2.ebs.volume.burst_balance["{#VOLUME_ID}"],5m)<{$AWS.EBS.BURST.CREDIT.BALANCE.MIN.WARN}`|Warning||
 
 # AWS RDS instance by HTTP
 
@@ -571,7 +625,7 @@ Additional information about metrics and used API methods:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -580,7 +634,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -588,7 +642,9 @@ The template get AWS RDS instance metrics and uses the script item to make HTTP 
 
 Before using the template, you need to create an IAM policy with the necessary permissions for the Zabbix role in your AWS account.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect Amazon RDS metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -606,7 +662,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume Role Authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -629,7 +697,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -644,7 +715,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -670,7 +745,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -689,13 +767,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, `{$AWS.RDS.INSTANCE.ID}`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about manage access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys)
 
@@ -787,16 +862,16 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.metrics.check))>0`|Warning||
-|Failed to get instance data|<p>Failed to get CloudWatch instance info for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.instance_info.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.alarms.check))>0`|Warning||
-|Failed to get events data|<p>Failed to get CloudWatch events for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.events.check))>0`|Warning||
-|Read replica in error state|<p>The status of a read replica.<br>False if the instance is in an error state.</p>|`last(/AWS RDS instance by HTTP/aws.rds.read_replica_state)=0`|Average||
-|Burst balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.burst_balance,5m)<{$AWS.RDS.BURST.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS RDS instance by HTTP/aws.rds.cpu.utilization,15m)>{$AWS.RDS.CPU.UTIL.WARN.MAX}`|Warning||
-|Instance CPU Credit balance is too low|<p>The number of earned CPU credits has been less than {$AWS.RDS.CPU.CREDIT.BALANCE.MIN.WARN} in the last 5 minutes.</p>|`max(/AWS RDS instance by HTTP/aws.rds.cpu.credit_balance,5m)<{$AWS.RDS.CPU.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|Byte Credit balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.ebs_byte_balance,5m)<{$AWS.EBS.BYTE.CREDIT.BALANCE.MIN.WARN}`|Warning||
-|I/O Credit balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.ebs_io_balance,5m)<{$AWS.EBS.IO.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS RDS: Failed to get metrics data|<p>Failed to get CloudWatch metrics for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.metrics.check))>0`|Warning||
+|AWS RDS: Failed to get instance data|<p>Failed to get CloudWatch instance info for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.instance_info.check))>0`|Warning||
+|AWS RDS: Failed to get alarms data|<p>Failed to get CloudWatch alarms for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.alarms.check))>0`|Warning||
+|AWS RDS: Failed to get events data|<p>Failed to get CloudWatch events for RDS.</p>|`length(last(/AWS RDS instance by HTTP/aws.rds.events.check))>0`|Warning||
+|AWS RDS: Read replica in error state|<p>The status of a read replica.<br>False if the instance is in an error state.</p>|`last(/AWS RDS instance by HTTP/aws.rds.read_replica_state)=0`|Average||
+|AWS RDS: Burst balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.burst_balance,5m)<{$AWS.RDS.BURST.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS RDS: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS RDS instance by HTTP/aws.rds.cpu.utilization,15m)>{$AWS.RDS.CPU.UTIL.WARN.MAX}`|Warning||
+|AWS RDS: Instance CPU Credit balance is too low|<p>The number of earned CPU credits has been less than {$AWS.RDS.CPU.CREDIT.BALANCE.MIN.WARN} in the last 5 minutes.</p>|`max(/AWS RDS instance by HTTP/aws.rds.cpu.credit_balance,5m)<{$AWS.RDS.CPU.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS RDS: Byte Credit balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.ebs_byte_balance,5m)<{$AWS.EBS.BYTE.CREDIT.BALANCE.MIN.WARN}`|Warning||
+|AWS RDS: I/O Credit balance is too low||`max(/AWS RDS instance by HTTP/aws.rds.ebs_io_balance,5m)<{$AWS.EBS.IO.CREDIT.BALANCE.MIN.WARN}`|Warning||
 
 ### LLD rule Instance Alarms discovery
 
@@ -815,8 +890,8 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS RDS instance by HTTP/aws.rds.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS RDS instance by HTTP/aws.rds.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS RDS instance by HTTP/aws.rds.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS RDS: [{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS RDS instance by HTTP/aws.rds.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS RDS instance by HTTP/aws.rds.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS RDS: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS RDS instance by HTTP/aws.rds.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Aurora metrics discovery
 
@@ -904,7 +979,7 @@ Additional information about metrics and used API methods:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -913,7 +988,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -921,7 +996,9 @@ The template gets AWS S3 metrics and uses the script item to make HTTP requests 
 
 Before using the template, you need to create an IAM policy for the Zabbix role in your AWS account with the necessary permissions.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect Amazon S3 metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -938,7 +1015,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -960,7 +1049,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -975,7 +1067,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1000,7 +1096,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1019,17 +1118,14 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 To gather Request metrics, [enable Requests metrics](https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudwatch-monitoring.html) on your Amazon S3 buckets from the AWS console.
 
 You can also define a filter for the Request metrics using a shared prefix, object tag, or access point.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.S3.BUCKET.NAME}`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about manage access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys)
 
@@ -1068,8 +1164,8 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for S3 bucket.</p>|`length(last(/AWS S3 bucket by HTTP/aws.s3.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for S3 bucket.</p>|`length(last(/AWS S3 bucket by HTTP/aws.s3.alarms.check))>0`|Warning||
+|AWS S3: Failed to get metrics data|<p>Failed to get CloudWatch metrics for S3 bucket.</p>|`length(last(/AWS S3 bucket by HTTP/aws.s3.metrics.check))>0`|Warning||
+|AWS S3: Failed to get alarms data|<p>Failed to get CloudWatch alarms for S3 bucket.</p>|`length(last(/AWS S3 bucket by HTTP/aws.s3.alarms.check))>0`|Warning||
 
 ### LLD rule Bucket Alarms discovery
 
@@ -1088,8 +1184,8 @@ Also, see the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS S3 bucket by HTTP/aws.s3.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS S3 bucket by HTTP/aws.s3.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS S3 bucket by HTTP/aws.s3.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS S3: [{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS S3 bucket by HTTP/aws.s3.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS S3 bucket by HTTP/aws.s3.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS S3: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS S3 bucket by HTTP/aws.s3.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Request Metrics discovery
 
@@ -1141,7 +1237,7 @@ Additional information about the metrics and used API methods:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -1150,7 +1246,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -1158,7 +1254,9 @@ The template gets AWS ECS metrics and uses the script item to make HTTP requests
 
 Before using the template, you need to create an IAM policy for the Zabbix role in your AWS account with the necessary permissions.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect Amazon ECS metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -1175,7 +1273,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1197,7 +1307,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -1212,7 +1325,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1237,7 +1354,9 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1256,13 +1375,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the following macros `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, `{$AWS.ECS.CLUSTER.NAME}`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys)
 
@@ -1315,10 +1431,10 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for ECS Cluster.</p>|`length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for ECS Cluster.</p>|`length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarms.check))>0`|Warning||
-|High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.cpu_utilization,15m)>{$AWS.ECS.CLUSTER.CPU.UTIL.WARN}`|Warning||
-|High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.memory_utilization,15m)>{$AWS.ECS.CLUSTER.MEMORY.UTIL.WARN}`|Warning||
+|AWS ECS Serverless: Failed to get metrics data|<p>Failed to get CloudWatch metrics for ECS Cluster.</p>|`length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.metrics.check))>0`|Warning||
+|AWS ECS Serverless: Failed to get alarms data|<p>Failed to get CloudWatch alarms for ECS Cluster.</p>|`length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarms.check))>0`|Warning||
+|AWS ECS Serverless: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.cpu_utilization,15m)>{$AWS.ECS.CLUSTER.CPU.UTIL.WARN}`|Warning||
+|AWS ECS Serverless: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.memory_utilization,15m)>{$AWS.ECS.CLUSTER.MEMORY.UTIL.WARN}`|Warning||
 
 ### LLD rule Cluster Alarms discovery
 
@@ -1338,8 +1454,8 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS ECS Serverless: [{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has 'Alarm' state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS ECS Serverless: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ECS Serverless Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Cluster Services discovery
 
@@ -1372,8 +1488,8 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#AWS.ECS.SERVICE.NAME}]: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.services.cpu.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.CPU.UTIL.WARN}`|Warning||
-|[{#AWS.ECS.SERVICE.NAME}]: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.services.memory.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.MEMORY.UTIL.WARN}`|Warning||
+|AWS ECS Serverless: [{#AWS.ECS.SERVICE.NAME}]: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.services.cpu.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.CPU.UTIL.WARN}`|Warning||
+|AWS ECS Serverless: [{#AWS.ECS.SERVICE.NAME}]: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Serverless Cluster by HTTP/aws.ecs.services.memory.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.MEMORY.UTIL.WARN}`|Warning||
 
 # AWS ECS Cluster by HTTP
 
@@ -1392,7 +1508,7 @@ Additional information about the metrics and used API methods:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -1401,7 +1517,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -1409,7 +1525,9 @@ The template gets AWS ECS metrics and uses the script item to make HTTP requests
 
 Before using the template, you need to create an IAM policy for the Zabbix role in your AWS account with the necessary permissions.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect Amazon ECS metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -1426,7 +1544,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1448,7 +1578,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -1463,7 +1596,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1488,7 +1625,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1507,13 +1647,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the following macros `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, `{$AWS.ECS.CLUSTER.NAME}`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys)
 
@@ -1564,10 +1701,10 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for ECS Cluster.</p>|`length(last(/AWS ECS Cluster by HTTP/aws.ecs.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for ECS Cluster.</p>|`length(last(/AWS ECS Cluster by HTTP/aws.ecs.alarms.check))>0`|Warning||
-|High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.cpu_utilization,15m)>{$AWS.ECS.CLUSTER.CPU.UTIL.WARN}`|Warning||
-|High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.memory_utilization,15m)>{$AWS.ECS.CLUSTER.MEMORY.UTIL.WARN}`|Warning||
+|AWS ECS Cluster: Failed to get metrics data|<p>Failed to get CloudWatch metrics for ECS Cluster.</p>|`length(last(/AWS ECS Cluster by HTTP/aws.ecs.metrics.check))>0`|Warning||
+|AWS ECS Cluster: Failed to get alarms data|<p>Failed to get CloudWatch alarms for ECS Cluster.</p>|`length(last(/AWS ECS Cluster by HTTP/aws.ecs.alarms.check))>0`|Warning||
+|AWS ECS Cluster: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.cpu_utilization,15m)>{$AWS.ECS.CLUSTER.CPU.UTIL.WARN}`|Warning||
+|AWS ECS Cluster: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.memory_utilization,15m)>{$AWS.ECS.CLUSTER.MEMORY.UTIL.WARN}`|Warning||
 
 ### LLD rule Cluster Alarms discovery
 
@@ -1587,8 +1724,8 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has `Alarm` state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS ECS Cluster: [{#ALARM_NAME}] has 'Alarm' state|<p>Alarm "{#ALARM_NAME}" has `Alarm` state.<br>Reason: {ITEM.LASTVALUE2}</p>|`last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS ECS Cluster: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ECS Cluster by HTTP/aws.ecs.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Cluster Services discovery
 
@@ -1617,8 +1754,8 @@ Refer to the Macros section for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#AWS.ECS.SERVICE.NAME}]: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.services.cpu.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.CPU.UTIL.WARN}`|Warning||
-|[{#AWS.ECS.SERVICE.NAME}]: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.services.memory.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.MEMORY.UTIL.WARN}`|Warning||
+|AWS ECS Cluster: [{#AWS.ECS.SERVICE.NAME}]: High CPU utilization|<p>The CPU utilization is too high. The system might be slow to respond.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.services.cpu.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.CPU.UTIL.WARN}`|Warning||
+|AWS ECS Cluster: [{#AWS.ECS.SERVICE.NAME}]: High memory utilization|<p>The system is running out of free memory.</p>|`min(/AWS ECS Cluster by HTTP/aws.ecs.services.memory.utilization["{#AWS.ECS.SERVICE.NAME}"],15m)>{$AWS.ECS.CLUSTER.SERVICE.MEMORY.UTIL.WARN}`|Warning||
 
 # AWS ELB Application Load Balancer by HTTP
 
@@ -1640,7 +1777,7 @@ Additional information about metrics and API methods used in the template:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -1649,7 +1786,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -1657,7 +1794,9 @@ The template gets AWS ELB Application Load Balancer metrics and uses the script 
 
 Before using the template, you need to create an IAM policy with the necessary permissions for the Zabbix role in your AWS account. For more information, visit the [ELB policies page](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/elb-api-permissions.html) on the AWS website.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect AWS ELB Application Load Balancer metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -1674,7 +1813,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1696,7 +1847,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -1711,7 +1865,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1736,7 +1894,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1755,13 +1916,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, and `{$AWS.ELB.ARN}`.
-
-If you are using access key-based authorization, set the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see [official AWS documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
 
@@ -1831,10 +1989,10 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for Application Load Balancer.</p>|`length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for Application Load Balancer.</p>|`length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarms.check))>0`|Warning||
-|Too many HTTP 4XX error codes|<p>Too many requests failed with HTTP 4XX code.</p>|`min(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.http_4xx_count,5m)>{$AWS.HTTP.4XX.FAIL.MAX.WARN}`|Warning||
-|Too many HTTP 5XX error codes|<p>Too many requests failed with HTTP 5XX code.</p>|`min(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.http_5xx_count,5m)>{$AWS.HTTP.5XX.FAIL.MAX.WARN}`|Warning||
+|AWS ELB ALB: Failed to get metrics data|<p>Failed to get CloudWatch metrics for Application Load Balancer.</p>|`length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.metrics.check))>0`|Warning||
+|AWS ELB ALB: Failed to get alarms data|<p>Failed to get CloudWatch alarms for Application Load Balancer.</p>|`length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarms.check))>0`|Warning||
+|AWS ELB ALB: Too many HTTP 4XX error codes|<p>Too many requests failed with HTTP 4XX code.</p>|`min(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.http_4xx_count,5m)>{$AWS.HTTP.4XX.FAIL.MAX.WARN}`|Warning||
+|AWS ELB ALB: Too many HTTP 5XX error codes|<p>Too many requests failed with HTTP 5XX code.</p>|`min(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.http_5xx_count,5m)>{$AWS.HTTP.5XX.FAIL.MAX.WARN}`|Warning||
 
 ### LLD rule Load Balancer alarm discovery
 
@@ -1854,8 +2012,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS ELB ALB: [{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS ELB ALB: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ELB Application Load Balancer by HTTP/aws.elb.alb.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Target groups discovery
 
@@ -1901,7 +2059,7 @@ Additional information about metrics and API methods used in the template:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -1910,7 +2068,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -1918,7 +2076,9 @@ The template gets AWS ELB Network Load Balancer metrics and uses the script item
 
 Before using the template, you need to create an IAM policy with the necessary permissions for the Zabbix role in your AWS account. For more information, visit the [ELB policies page](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/elb-api-permissions.html) on the AWS website.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect AWS ELB Network Load Balancer metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -1935,7 +2095,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1957,7 +2129,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -1972,7 +2147,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -1997,7 +2176,10 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2016,13 +2198,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, and `{$AWS.ELB.ARN}`.
-
-If you are using access key-based authorization, set the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see [official AWS documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
 
@@ -2095,8 +2274,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for Network Load Balancer.</p>|`length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for Network Load Balancer.</p>|`length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarms.check))>0`|Warning||
+|AWS ELB NLB: Failed to get metrics data|<p>Failed to get CloudWatch metrics for Network Load Balancer.</p>|`length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.metrics.check))>0`|Warning||
+|AWS ELB NLB: Failed to get alarms data|<p>Failed to get CloudWatch alarms for Network Load Balancer.</p>|`length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarms.check))>0`|Warning||
 
 ### LLD rule Load Balancer alarm discovery
 
@@ -2116,8 +2295,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS ELB NLB: [{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS ELB NLB: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 ### LLD rule Target groups discovery
 
@@ -2137,8 +2316,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#AWS.ELB.TARGET.GROUP.NAME}]: Target have become unhealthy|<p>This trigger helps in identifying when your targets have become unhealthy.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.target_groups.healthy_host_count["{#AWS.ELB.TARGET.GROUP.NAME}"]) = 0`|Average||
-|[{#AWS.ELB.TARGET.GROUP.NAME}]: Target have unhealthy host|<p>This trigger allows you to become aware when there are no more registered targets.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.target_groups.unhealthy_host_count["{#AWS.ELB.TARGET.GROUP.NAME}"]) > {$AWS.ELB.UNHEALTHY.HOST.MAX}`|Warning|**Depends on**:<br><ul><li>[{#AWS.ELB.TARGET.GROUP.NAME}]: Target have become unhealthy</li></ul>|
+|AWS ELB NLB: [{#AWS.ELB.TARGET.GROUP.NAME}]: Target have become unhealthy|<p>This trigger helps in identifying when your targets have become unhealthy.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.target_groups.healthy_host_count["{#AWS.ELB.TARGET.GROUP.NAME}"]) = 0`|Average||
+|AWS ELB NLB: [{#AWS.ELB.TARGET.GROUP.NAME}]: Target have unhealthy host|<p>This trigger allows you to become aware when there are no more registered targets.</p>|`last(/AWS ELB Network Load Balancer by HTTP/aws.elb.nlb.target_groups.unhealthy_host_count["{#AWS.ELB.TARGET.GROUP.NAME}"]) > {$AWS.ELB.UNHEALTHY.HOST.MAX}`|Warning|**Depends on**:<br><ul><li>AWS ELB NLB: [{#AWS.ELB.TARGET.GROUP.NAME}]: Target have become unhealthy</li></ul>|
 
 # AWS Lambda by HTTP
 
@@ -2154,7 +2333,7 @@ Additional information about metrics and API methods used in the template:
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -2163,7 +2342,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -2171,7 +2350,9 @@ The template gets AWS Lambda metrics and uses the script item to make HTTP reque
 
 Before using the template, you need to create an IAM policy with the necessary permissions for the Zabbix role in your AWS account. For more information, visit the [Lambda permissions page](https://docs.aws.amazon.com/lambda/latest/dg/lambda-permissions.html) on the AWS website.
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect AWS Lambda metrics.
+
 ```json
 {
     "Version":"2012-10-17",
@@ -2187,7 +2368,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
   }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume role authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2208,7 +2401,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -2223,7 +2419,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, set the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2247,7 +2447,9 @@ If you are using role-based authorization, set the appropriate permissions:
     ]
 }
 ```
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2266,13 +2468,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the macros: `{$AWS.AUTH_TYPE}`, `{$AWS.REGION}`, and `{$AWS.LAMBDA.ARN}`.
-
-If you are using access key-based authorization, set the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see the [official AWS documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
 
@@ -2320,8 +2519,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Failed to get metrics data|<p>Failed to get CloudWatch metrics for the Lambda function.</p>|`length(last(/AWS Lambda by HTTP/aws.lambda.metrics.check))>0`|Warning||
-|Failed to get alarms data|<p>Failed to get CloudWatch alarms for the Lambda function.</p>|`length(last(/AWS Lambda by HTTP/aws.lambda.alarms.check))>0`|Warning||
+|AWS Lambda: Failed to get metrics data|<p>Failed to get CloudWatch metrics for the Lambda function.</p>|`length(last(/AWS Lambda by HTTP/aws.lambda.metrics.check))>0`|Warning||
+|AWS Lambda: Failed to get alarms data|<p>Failed to get CloudWatch alarms for the Lambda function.</p>|`length(last(/AWS Lambda by HTTP/aws.lambda.alarms.check))>0`|Warning||
 
 ### LLD rule Lambda alarm discovery
 
@@ -2341,8 +2540,8 @@ See the section below for a list of macros used for LLD filters.
 
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|[{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS Lambda by HTTP/aws.lambda.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS Lambda by HTTP/aws.lambda.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
-|[{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS Lambda by HTTP/aws.lambda.alarm.state["{#ALARM_NAME}"])=1`|Info||
+|AWS Lambda: [{#ALARM_NAME}] has 'Alarm' state|<p>The alarm `{#ALARM_NAME}` is in the ALARM state.<br>Reason: `{ITEM.LASTVALUE2}`</p>|`last(/AWS Lambda by HTTP/aws.lambda.alarm.state["{#ALARM_NAME}"])=2 and length(last(/AWS Lambda by HTTP/aws.lambda.alarm.state_reason["{#ALARM_NAME}"]))>0`|Average||
+|AWS Lambda: [{#ALARM_NAME}] has 'Insufficient data' state|<p>Either the alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.</p>|`last(/AWS Lambda by HTTP/aws.lambda.alarm.state["{#ALARM_NAME}"])=1`|Info||
 
 # AWS Cost Explorer by HTTP
 
@@ -2357,7 +2556,7 @@ For more information, please refer to the [Cost Explorer pricing](https://aws.am
 
 ## Requirements
 
-Zabbix version: 7.2 and higher.
+Zabbix version: 7.4 and higher.
 
 ## Tested versions
 
@@ -2366,7 +2565,7 @@ This template has been tested on:
 
 ## Configuration
 
-> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.2/manual/config/templates_out_of_the_box) section.
+> Zabbix should be configured according to the instructions in the [Templates out of the box](https://www.zabbix.com/documentation/7.4/manual/config/templates_out_of_the_box) section.
 
 ## Setup
 
@@ -2374,7 +2573,9 @@ Before using the template, you need to create an IAM policy for the Zabbix role 
 
 * [IAM policies for AWS Cost Management](https://docs.aws.amazon.com/cost-management/latest/userguide/billing-permissions-ref.html)
 
+### Required Permissions
 Add the following required permissions to your Zabbix IAM policy in order to collect metrics.
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2390,7 +2591,19 @@ Add the following required permissions to your Zabbix IAM policy in order to col
     ]
 }
 ```
+
+### Access Key Authorization
+
+If you are using access key authorization, you need to generate an access key and secret key for an IAM user with the necessary permissions:
+
+1. Create an IAM user with programmatic access.
+2. Attach the required policy to the IAM user.
+3. Generate an access key and secret key.
+4. Use the generated credentials in the macros `{$AWS.ACCESS.KEY.ID}` and `{$AWS.SECRET.ACCESS.KEY}`.
+
+### Assume Role Authorization
 For using assume role authorization, add the appropriate permissions to the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2411,7 +2624,10 @@ For using assume role authorization, add the appropriate permissions to the role
     ]
 }
 ```
+
+#### Trust Relationships for Assume Role Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -2426,7 +2642,11 @@ Next, add a principal to the trust relationships of the role you are using:
   ]
 }
 ```
+Set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
+
+### Role-Based Authorization
 If you are using role-based authorization, add the appropriate permissions:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2449,7 +2669,10 @@ If you are using role-based authorization, add the appropriate permissions:
     ]
 }
 ```
+
+#### Trust Relationships for Role-Based Authorization
 Next, add a principal to the trust relationships of the role you are using:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -2468,13 +2691,10 @@ Next, add a principal to the trust relationships of the role you are using:
     ]
 }
 ```
-**Note**, Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
+
+**Note**: Using role-based authorization is only possible when you use a Zabbix server or proxy inside AWS.
 
 Set the macros: `{$AWS.AUTH_TYPE}`. Possible values: `access_key`, `assume_role`, `role_base`.
-
-If you are using access key-based authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`.
-
-If you are using access assume role authorization, set the following macros: `{$AWS.ACCESS.KEY.ID}`, `{$AWS.SECRET.ACCESS.KEY}`, `{$AWS.STS.REGION}`, `{$AWS.ASSUME.ROLE.ARN}`.
 
 For more information about managing access keys, see the [official documentation](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
 

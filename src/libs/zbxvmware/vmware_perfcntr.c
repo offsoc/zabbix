@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -384,10 +384,14 @@ int	vmware_service_get_perf_counters(zbx_vmware_service_t *service, CURL *easyha
 			unit = ZBX_VMWARE_UNIT_JOULE;						\
 		else if (0 == strcmp("kiloBytes",val))						\
 			unit = ZBX_VMWARE_UNIT_KILOBYTES;					\
-		else if (0 == strcmp("kiloBytesPerSecond",val))					\
-			unit = ZBX_VMWARE_UNIT_KILOBYTESPERSECOND;				\
 		else if (0 == strcmp("megaBytes",val))						\
 			unit = ZBX_VMWARE_UNIT_MEGABYTES;					\
+		else if (0 == strcmp("gigaBytes",val))						\
+			unit = ZBX_VMWARE_UNIT_GIGABYTES;					\
+		else if (0 == strcmp("teraBytes",val))						\
+			unit = ZBX_VMWARE_UNIT_TERABYTES;					\
+		else if (0 == strcmp("kiloBytesPerSecond",val))					\
+			unit = ZBX_VMWARE_UNIT_KILOBYTESPERSECOND;				\
 		else if (0 == strcmp("megaBytesPerSecond",val))					\
 			unit = ZBX_VMWARE_UNIT_MEGABYTESPERSECOND;				\
 		else if (0 == strcmp("megaHertz",val))						\
@@ -398,14 +402,12 @@ int	vmware_service_get_perf_counters(zbx_vmware_service_t *service, CURL *easyha
 			unit = ZBX_VMWARE_UNIT_MICROSECOND;					\
 		else if (0 == strcmp("millisecond",val))					\
 			unit = ZBX_VMWARE_UNIT_MILLISECOND;					\
+		else if (0 == strcmp("second",val))						\
+			unit = ZBX_VMWARE_UNIT_SECOND;						\
 		else if (0 == strcmp("number",val))						\
 			unit = ZBX_VMWARE_UNIT_NUMBER;						\
 		else if (0 == strcmp("percent",val))						\
 			unit = ZBX_VMWARE_UNIT_PERCENT;						\
-		else if (0 == strcmp("second",val))						\
-			unit = ZBX_VMWARE_UNIT_SECOND;						\
-		else if (0 == strcmp("teraBytes",val))						\
-			unit = ZBX_VMWARE_UNIT_TERABYTES;					\
 		else if (0 == strcmp("watt",val))						\
 			unit = ZBX_VMWARE_UNIT_WATT;						\
 		else if (0 == strcmp("celsius",val))						\
@@ -891,8 +893,6 @@ static void	vmware_service_copy_perf_data(const zbx_vmware_service_t *service,
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
 
-#define ZBX_XML_DATETIME		26
-
 /******************************************************************************
  *                                                                            *
  * Purpose: retrieves performance counter values from vmware service          *
@@ -911,7 +911,7 @@ static void	vmware_service_retrieve_perf_counters(zbx_vmware_service_t *service,
 {
 	char				*tmp = NULL, *error = NULL;
 	size_t				tmp_alloc = 0, tmp_offset;
-	int				i, j, start_counter = 0;
+	int				i, j, k, start_counter = 0;
 	zbx_vmware_perf_entity_t	*entity;
 	xmlDoc				*doc = NULL;
 
@@ -971,11 +971,21 @@ static void	vmware_service_retrieve_perf_counters(zbx_vmware_service_t *service,
 					continue;
 				}
 
-				zbx_snprintf_alloc(&tmp, &tmp_alloc, &tmp_offset,
-						"<ns0:metricId><ns0:counterId>" ZBX_FS_UI64
-						"</ns0:counterId><ns0:instance>%s</ns0:instance></ns0:metricId>",
-						counter->counterid, NULL == counter->query_instance ?
-						entity->query_instance : counter->query_instance);
+				for (k = 0; k < counter->query_instance.values_num; k++)
+				{
+					zbx_snprintf_alloc(&tmp, &tmp_alloc, &tmp_offset,
+							"<ns0:metricId><ns0:counterId>" ZBX_FS_UI64 "</ns0:counterId>"
+							"<ns0:instance>%s</ns0:instance></ns0:metricId>",
+							counter->counterid, counter->query_instance.values[k]);
+				}
+
+				if (0 == counter->query_instance.values_num)
+				{
+					zbx_snprintf_alloc(&tmp, &tmp_alloc, &tmp_offset,
+							"<ns0:metricId><ns0:counterId>" ZBX_FS_UI64 "</ns0:counterId>"
+							"<ns0:instance>%s</ns0:instance></ns0:metricId>",
+							counter->counterid, entity->query_instance);
+				}
 
 				counter->state |= ZBX_VMWARE_COUNTER_UPDATING;
 
@@ -1235,8 +1245,6 @@ static void	vmware_perf_counters_availability_check(zbx_vmware_service_t *servic
 
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
 }
-
-#undef ZBX_XML_DATETIME
 
 /******************************************************************************
  *                                                                            *
@@ -1611,8 +1619,8 @@ int	zbx_vmware_service_add_perf_counter(zbx_vmware_service_t *service, const cha
 	zbx_vmware_perf_counter_t	*counter;
 	int				i, ret = FAIL;
 
-	zabbix_log(LOG_LEVEL_DEBUG, "In %s() type:%s id:%s counterid:" ZBX_FS_UI64, __func__, type, id,
-			counterid);
+	zabbix_log(LOG_LEVEL_DEBUG, "In %s() type:%s id:%s counterid:" ZBX_FS_UI64 " instance:%s", __func__, type, id,
+			counterid, instance);
 
 	if (NULL == (pentity = zbx_vmware_service_get_perf_entity(service, type, id)))
 	{
@@ -1651,11 +1659,11 @@ int	zbx_vmware_service_add_perf_counter(zbx_vmware_service_t *service, const cha
 	else
 		counter = (zbx_vmware_perf_counter_t *)pentity->counters.values[i];
 
-	if (*ZBX_VMWARE_PERF_QUERY_ALL != *pentity->query_instance)
-		counter->query_instance = vmware_shared_strdup(instance);
+	if (FAIL == zbx_vector_str_search(&counter->query_instance, instance, ZBX_DEFAULT_STR_COMPARE_FUNC))
+		zbx_vector_str_append(&counter->query_instance, vmware_shared_strdup(instance));
 
-	zabbix_log(LOG_LEVEL_DEBUG, "End of %s():%s counter state:%X", __func__, zbx_result_string(ret),
-			counter->state);
+	zabbix_log(LOG_LEVEL_DEBUG, "End of %s():%s counter state:%X instances:%d", __func__, zbx_result_string(ret),
+			counter->state, counter->query_instance.values_num);
 
 	return ret;
 }

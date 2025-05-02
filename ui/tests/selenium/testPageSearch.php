@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -16,8 +16,8 @@
 
 use Facebook\WebDriver\Exception\TimeoutException;
 
-require_once dirname(__FILE__).'/../include/CWebTest.php';
-require_once dirname(__FILE__).'/behaviors/CTableBehavior.php';
+require_once __DIR__.'/../include/CWebTest.php';
+require_once __DIR__.'/behaviors/CTableBehavior.php';
 
 /**
  * @backup hstgrp
@@ -45,7 +45,7 @@ class testPageSearch extends CWebTest {
 			'title' => 'Hosts',
 			'column_groups' => ['Host', 'IP', 'DNS', 'Monitoring', 'Configuration'],
 			'columns' => [
-				['text' => 'Test object Host', 'href' => 'zabbix.php?action=host.edit&hostid={id}'],
+				['text' => 'Test object Host', 'href' => 'zabbix.php?action=popup&popup=host.edit&hostid={id}'],
 				['text' => '127.0.0.1'],
 				['text' => 'testdnstwo.example.com'],
 				['text' => 'Latest data', 'href' => 'zabbix.php?action=latest.view&hostids%5B%5D={id}&filter_set=1'],
@@ -55,7 +55,7 @@ class testPageSearch extends CWebTest {
 				['text' => 'Web', 'href' => 'zabbix.php?action=web.view&filter_hostids%5B%5D={id}&filter_set=1'],
 				['text' => 'Items', 'href' => 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D={id}&context=host'],
 				['text' => 'Triggers', 'href' => 'zabbix.php?action=trigger.list&filter_set=1&filter_hostids%5B0%5D={id}&context=host'],
-				['text' => 'Graphs', 'href' => 'graphs.php?filter_set=1&filter_hostids%5B0%5D={id}&context=host'],
+				['text' => 'Graphs', 'href' => 'zabbix.php?action=graph.list&filter_set=1&filter_hostids%5B0%5D={id}&context=host'],
 				['text' => 'Discovery', 'href' => 'host_discovery.php?filter_set=1&filter_hostids%5B0%5D={id}&context=host'],
 				['text' => 'Web', 'href' => 'httpconf.php?filter_set=1&filter_hostids%5B0%5D={id}&context=host']
 			]
@@ -67,7 +67,7 @@ class testPageSearch extends CWebTest {
 			'title' => 'Host groups',
 			'column_groups' => ['Host group', 'Monitoring', 'Configuration'],
 			'columns' => [
-				['text' => 'Test object Hostgroup', 'href' => 'zabbix.php?action=hostgroup.edit&groupid={id}'],
+				['text' => 'Test object Hostgroup', 'href' => 'zabbix.php?action=popup&popup=hostgroup.edit&groupid={id}'],
 				['text' => 'Latest data', 'href' => 'zabbix.php?action=latest.view&groupids%5B%5D={id}&filter_set=1'],
 				['text' => 'Problems', 'href' => 'zabbix.php?action=problem.view&groupids%5B0%5D={id}&filter_set=1'],
 				['text' => 'Web', 'href' => 'zabbix.php?action=web.view&filter_groupids%5B%5D={id}&filter_set=1'],
@@ -81,10 +81,10 @@ class testPageSearch extends CWebTest {
 			'title' => 'Templates',
 			'column_groups' => ['Template', 'Configuration'],
 			'columns' => [
-				['text' => 'Test object Template', 'href' => 'javascript:void(0)'],
+				['text' => 'Test object Template', 'href' => 'zabbix.php?action=popup&popup=template.edit&templateid={id}'],
 				['text' => 'Items', 'href' => 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D={id}&context=template'],
 				['text' => 'Triggers', 'href' => 'zabbix.php?action=trigger.list&filter_set=1&filter_hostids%5B0%5D={id}&context=template'],
-				['text' => 'Graphs', 'href' => 'graphs.php?filter_set=1&filter_hostids%5B0%5D={id}&context=template'],
+				['text' => 'Graphs', 'href' => 'zabbix.php?action=graph.list&filter_set=1&filter_hostids%5B0%5D={id}&context=template'],
 				['text' => 'Dashboards', 'href' => 'zabbix.php?action=template.dashboard.list&templateid={id}'],
 				['text' => 'Discovery', 'href' => 'host_discovery.php?filter_set=1&filter_hostids%5B0%5D={id}&context=template'],
 				['text' => 'Web', 'href' => 'httpconf.php?filter_set=1&filter_hostids%5B0%5D={id}&context=template']
@@ -97,7 +97,7 @@ class testPageSearch extends CWebTest {
 			'title' => 'Template groups',
 			'column_groups' => ['Template group','Configuration'],
 			'columns' => [
-				['text' => 'Test object Templategroup', 'href' => 'zabbix.php?action=templategroup.edit&groupid={id}'],
+				['text' => 'Test object Templategroup', 'href' => 'zabbix.php?action=popup&popup=templategroup.edit&groupid={id}'],
 				['text' => 'Templates 1', 'href' => 'zabbix.php?action=template.list&filter_set=1&filter_groups%5B0%5D={id}']
 			]
 		]

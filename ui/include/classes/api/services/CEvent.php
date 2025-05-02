@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -84,9 +84,7 @@ class CEvent extends CApiService {
 			'output' =>					['type' => API_OUTPUT, 'in' => implode(',', self::OUTPUT_FIELDS), 'default' => API_OUTPUT_EXTEND],
 			'countOutput' =>			['type' => API_FLAG, 'default' => false],
 			'groupBy' =>				['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => 'objectid', 'uniq' => true, 'default' => null],
-			'select_acknowledges' =>	['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL | API_ALLOW_COUNT | API_DEPRECATED, 'replacement' => 'selectAcknowledges', 'in' => implode(',', $acknowledge_output_fields), 'default' => null],
 			'selectAcknowledges' =>		['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL | API_ALLOW_COUNT, 'in' => implode(',', $acknowledge_output_fields), 'default' => null],
-			'select_alerts' =>			['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL | API_DEPRECATED, 'replacement' => 'selectAlerts', 'in' => implode(',', $alert_output_fields), 'default' => null],
 			'selectAlerts' =>			['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', $alert_output_fields), 'default' => null],
 			'selectHosts' =>			['type' => API_OUTPUT, 'flags' => API_ALLOW_NULL, 'in' => implode(',', CHost::OUTPUT_FIELDS), 'default' => null],
 			'selectRelatedObject' =>	['type' => API_MULTIPLE, 'default' => null, 'rules' => [
@@ -558,14 +556,15 @@ class CEvent extends CApiService {
 
 		if ($tag_conditions) {
 			if ($value == TRIGGER_VALUE_TRUE) {
-				$sql_parts['from']['et'] = 'event_tag et';
-				$sql_parts['where']['e-et'] = 'e.eventid=et.eventid';
+				$sql_parts['left_join'][] = ['alias' => 'et', 'table' => 'event_tag', 'using' => 'eventid'];
+				$sql_parts['left_table'] = ['alias' => 'e', 'table' => 'events'];
 			}
 			else {
 				$sql_parts['from']['er'] = 'event_recovery er';
-				$sql_parts['from']['et'] = 'event_tag et';
 				$sql_parts['where']['e-er'] = 'e.eventid=er.r_eventid';
-				$sql_parts['where']['er-et'] = 'er.eventid=et.eventid';
+
+				$sql_parts['left_join'][] = ['alias' => 'et', 'table' => 'event_tag', 'using' => 'eventid'];
+				$sql_parts['left_table'] = ['alias' => 'er', 'table' => 'event_recovery'];
 			}
 
 			if ($full_access_groupids || count($tag_conditions) > 1) {

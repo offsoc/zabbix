@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,7 +14,7 @@
 **/
 
 
-require_once dirname(__FILE__).'/../include/CWebTest.php';
+require_once __DIR__.'/../include/CWebTest.php';
 
 /**
  * Test for checking empty pages and tables.
@@ -133,7 +133,7 @@ class testPagesWithoutData extends CWebTest {
 			// #3 Empty hosts' graphs table.
 			[
 				[
-					'url' => 'graphs.php?filter_set=1&context=host&filter_hostids%5B0%5D='
+					'url' => 'zabbix.php?action=graph.list&filter_set=1&context=host&filter_hostids%5B0%5D='
 				]
 			],
 			// #4 Empty hosts' LLD table.
@@ -163,7 +163,7 @@ class testPagesWithoutData extends CWebTest {
 			// #8 Graph prototypes table.
 			[
 				[
-					'url' => 'graphs.php?context=host&parent_discoveryid='
+					'url' => 'zabbix.php?action=graph.prototype.list&context=host&parent_discoveryid='
 				]
 			],
 			// #9 Host prototypes table.
@@ -196,7 +196,7 @@ class testPagesWithoutData extends CWebTest {
 			// #13 Empty templates' graphs table.
 			[
 				[
-					'url' => 'graphs.php?filter_set=1&context=template&filter_hostids%5B0%5D='
+					'url' => 'zabbix.php?action=graph.list&filter_set=1&context=template&filter_hostids%5B0%5D='
 				]
 			],
 			// #14 Empty templates' LLD table.

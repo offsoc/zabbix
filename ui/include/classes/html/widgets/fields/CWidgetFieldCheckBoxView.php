@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -31,5 +31,16 @@ class CWidgetFieldCheckBoxView extends CWidgetFieldView {
 				->setLabel($this->field->getCaption())
 				->onChange($this->field->getAction())
 		];
+	}
+
+	public function getJavaScript(): string {
+		return '
+			CWidgetForm.addField(
+				new CWidgetFieldCheckbox('.json_encode([
+					'name' => $this->field->getName(),
+					'form_name' => $this->form_name
+				]).')
+			);
+		';
 	}
 }

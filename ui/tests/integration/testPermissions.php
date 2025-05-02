@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -21,7 +21,7 @@ require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
  * @required-components server, agent
  * @configurationDataProvider serverConfigurationProvider
  * @backup hosts,actions,permission,alerts
- * @backup auditlog,changelog,config
+ * @backup auditlog,changelog,settings
  */
 class testPermissions extends CIntegrationTest {
 	const HOST_NAME_01 = 'h01';

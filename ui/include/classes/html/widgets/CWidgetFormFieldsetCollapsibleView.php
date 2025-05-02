@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -54,10 +54,6 @@ class CWidgetFormFieldsetCollapsibleView extends CFormFieldsetCollapsible {
 	public function addItem($value): self {
 		if ($value === null) {
 			return $this;
-		}
-
-		if (is_string($value)) {
-			$value = $this->encode($value, $this->getEncStrategy());
 		}
 
 		$this->fields[] = $value;

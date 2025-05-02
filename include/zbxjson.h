@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -226,6 +226,8 @@
 #define ZBX_PROTO_TAG_SYMPTOM			"symptom"
 #define ZBX_PROTO_TAG_AUTH			"auth"
 #define ZBX_PROTO_TAG_LEASE_DURATION		"lease_duration"
+#define ZBX_PROTO_TAG_PREPROC			"preproc"
+#define ZBX_PROTO_TAG_PROXY_SECRETS_PROVIDER	"proxy_secrets_provider"
 
 #define ZBX_PROTO_VALUE_FAILED		"failed"
 #define ZBX_PROTO_VALUE_SUCCESS		"success"
@@ -320,7 +322,7 @@ const char	*zbx_json_strerror(void);
 
 void	zbx_json_init(struct zbx_json *j, size_t allocate);
 void	zbx_json_initarray(struct zbx_json *j, size_t allocate);
-void	zbx_json_init_with(struct zbx_json *j, const char *src);
+void	zbx_json_init_with(struct zbx_json *j, const char *src, size_t len);
 void	zbx_json_clean(struct zbx_json *j);
 void	zbx_json_free(struct zbx_json *j);
 void	zbx_json_addobject(struct zbx_json *j, const char *name);
@@ -404,7 +406,6 @@ typedef struct zbx_jsonpath_index zbx_jsonpath_index_t;
 
 int	zbx_jsonpath_compile(const char *path, zbx_jsonpath_t *jsonpath);
 int	zbx_jsonpath_query(const struct zbx_json_parse *jp, const char *path, char **output);
-int	zbx_jsonobj_query_ext(zbx_jsonobj_t *obj, zbx_jsonpath_index_t *index, const char *path, char **output);
 void	zbx_jsonpath_clear(zbx_jsonpath_t *jsonpath);
 
 zbx_jsonpath_index_t	*zbx_jsonpath_index_create(char **error);
@@ -412,7 +413,9 @@ void	zbx_jsonpath_index_free(zbx_jsonpath_index_t *index);
 
 int	zbx_jsonobj_open(const char *data, zbx_jsonobj_t *obj);
 void	zbx_jsonobj_clear(zbx_jsonobj_t *obj);
-int	zbx_jsonobj_query(zbx_jsonobj_t *obj, const char *path, char **output);
-int	zbx_jsonobj_to_string(char **str, size_t *str_alloc, size_t *str_offset, zbx_jsonobj_t *obj);
+int	zbx_jsonobj_query(const zbx_jsonobj_t *obj, const char *path, char **output);
+int	zbx_jsonobj_query_ext(const zbx_jsonobj_t *obj, zbx_jsonpath_index_t *index, const char *path, char **output);
+int	zbx_jsonobj_to_string(char **str, size_t *str_alloc, size_t *str_offset, const zbx_jsonobj_t *obj);
+const zbx_jsonobj_t *zbx_jsonobj_get_value(const zbx_jsonobj_t *obj, const char *name);
 
 #endif /* ZABBIX_ZJSON_H */

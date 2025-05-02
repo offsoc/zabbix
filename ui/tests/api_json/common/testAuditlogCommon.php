@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -51,10 +51,10 @@ class testAuditlogCommon extends CAPITest {
 	/**
 	 * Send auditlog.get request and check returned values.
 	 *
-	 * @param string $parameter 	what parameter need to be checked in audit
-	 * @param integer $actionid 	action id
-	 * @param string $expected 		what should be returned in request
-	 * @param integer $resourceid 	resource id
+	 * @param string       $parameter   What parameter need to be checked in audit.
+	 * @param integer      $actionid    Action ID.
+	 * @param string       $expected    What should be returned in request.
+	 * @param integer|null $resourceid  Resource ID.
 	 */
 	public function getAuditDetails($parameter, $actionid, $expected, $resourceid) {
 		$get = $this->call('auditlog.get', [
@@ -64,7 +64,8 @@ class testAuditlogCommon extends CAPITest {
 			'filter' => [
 				'resourceid' => $resourceid,
 				'action' => $actionid
-			]
+			],
+			'limit' => 1
 		]);
 
 		$this->assertEquals($expected, $get['result'][0][$parameter]);

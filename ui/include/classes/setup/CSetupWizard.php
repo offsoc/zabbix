@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -1037,11 +1037,19 @@ class CSetupWizard extends CForm {
 
 		$this->dbConnect($db_user, $db_password);
 
-		$update = [];
-		foreach (['default_lang', 'default_timezone', 'default_theme'] as $key) {
-			$update[] = $key.'='.zbx_dbstr($this->getConfig($key));
-		}
-		DBexecute('UPDATE config SET '.implode(',', $update));
+		DB::update('settings', [
+			'values' => ['value_str' => $this->getConfig('default_lang')],
+			'where' => ['name' => 'default_lang']
+		]);
+		DB::update('settings', [
+			'values' => ['value_str' => $this->getConfig('default_timezone')],
+			'where' => ['name' => 'default_timezone']
+		]);
+		DB::update('settings', [
+			'values' => ['value_str' => $this->getConfig('default_theme')],
+			'where' => ['name' => 'default_theme']
+		]);
+
 		$this->dbClose();
 
 		$this->setConfig('ZBX_CONFIG_FILE_CORRECT', true);
@@ -1164,7 +1172,7 @@ class CSetupWizard extends CForm {
 		return $list;
 	}
 
-	private function dbConnect(string $username = null, string $password = null) {
+	private function dbConnect(?string $username = null, ?string $password = null) {
 		global $DB;
 
 		if (!$this->getConfig('check_fields_result')) {

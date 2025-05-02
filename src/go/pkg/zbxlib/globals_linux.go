@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -42,7 +42,6 @@ package zbxlib
 #cgo LDFLAGS: ${SRCDIR}/../../../libs/zbxexec/libzbxexec.a
 #cgo LDFLAGS: ${SRCDIR}/../../../libs/zbxalgo/libzbxalgo.a
 #cgo LDFLAGS: ${SRCDIR}/../../../libs/zbxjson/libzbxjson.a
-#cgo pcre  LDFLAGS: -lz -lpcre -lresolv
 #cgo pcre2 LDFLAGS: -lz -lpcre2-8 -lresolv
 #cgo LDFLAGS: -Wl,--end-group
 

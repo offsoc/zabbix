@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -16,15 +16,16 @@
 
 ?>
 
-window.widget_systeminfo_form = new class {
+window.widget_form = new class extends CWidgetForm {
 
 	init() {
-		this._form = document.getElementById('widget-dialogue-form');
+		this._form = this.getForm();
 		this._info_type = document.getElementById('info_type');
 
 		this._info_type.addEventListener('change', () => this.#updateForm());
 
 		this.#updateForm();
+		this.ready();
 	}
 
 	#updateForm() {

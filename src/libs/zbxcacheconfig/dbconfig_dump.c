@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -11,6 +11,7 @@
 ** You should have received a copy of the GNU Affero General Public License along with this program.
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 #include "zbxcacheconfig.h"
 #include "dbconfig.h"
 #include "user_macro.h"
@@ -31,9 +32,9 @@ static void	DCdump_config(void)
 	if (NULL == config->config)
 		goto out;
 
-	zabbix_log(LOG_LEVEL_TRACE, "revision:" ZBX_FS_UI64, config->revision.config_table);
+	zabbix_log(LOG_LEVEL_TRACE, "revision:" ZBX_FS_UI64, config->revision.settings_table);
 	zabbix_log(LOG_LEVEL_TRACE, "discovery_groupid:" ZBX_FS_UI64, config->config->discovery_groupid);
-	zabbix_log(LOG_LEVEL_TRACE, "snmptrap_logging:%hhu", config->config->snmptrap_logging);
+	zabbix_log(LOG_LEVEL_TRACE, "snmptrap_logging:%d", config->config->snmptrap_logging);
 	zabbix_log(LOG_LEVEL_TRACE, "default_inventory_mode:%d", config->config->default_inventory_mode);
 
 	zabbix_log(LOG_LEVEL_TRACE, "db:");
@@ -42,31 +43,31 @@ static void	DCdump_config(void)
 			config->config->db.history_compression_status);
 	zabbix_log(LOG_LEVEL_TRACE, "  history_compress_older: %d", config->config->db.history_compress_older);
 
-	zabbix_log(LOG_LEVEL_TRACE, "autoreg_tls_accept:%hhu", config->config->autoreg_tls_accept);
+	zabbix_log(LOG_LEVEL_TRACE, "autoreg_tls_accept:%d", config->config->autoreg_tls_accept);
 
 	zabbix_log(LOG_LEVEL_TRACE, "severity names:");
 	for (int i = 0; TRIGGER_SEVERITY_COUNT > i; i++)
 		zabbix_log(LOG_LEVEL_TRACE, "  %s", config->config->severity_name[i]);
 
 	zabbix_log(LOG_LEVEL_TRACE, "housekeeping:");
-	zabbix_log(LOG_LEVEL_TRACE, "  events, mode:%u period:[trigger:%d internal:%d autoreg:%d discovery:%d]",
+	zabbix_log(LOG_LEVEL_TRACE, "  events, mode:%d period:[trigger:%d internal:%d autoreg:%d discovery:%d]",
 			config->config->hk.events_mode, config->config->hk.events_trigger,
 			config->config->hk.events_internal, config->config->hk.events_autoreg,
 			config->config->hk.events_discovery);
 
-	zabbix_log(LOG_LEVEL_TRACE, "  audit, mode:%u period:%d", config->config->hk.audit_mode,
+	zabbix_log(LOG_LEVEL_TRACE, "  audit, mode:%d period:%d", config->config->hk.audit_mode,
 			config->config->hk.audit);
 
-	zabbix_log(LOG_LEVEL_TRACE, "  it services, mode:%u period:%d", config->config->hk.services_mode,
+	zabbix_log(LOG_LEVEL_TRACE, "  it services, mode:%d period:%d", config->config->hk.services_mode,
 			config->config->hk.services);
 
-	zabbix_log(LOG_LEVEL_TRACE, "  user sessions, mode:%u period:%d", config->config->hk.sessions_mode,
+	zabbix_log(LOG_LEVEL_TRACE, "  user sessions, mode:%d period:%d", config->config->hk.sessions_mode,
 			config->config->hk.sessions);
 
-	zabbix_log(LOG_LEVEL_TRACE, "  history, mode:%u global:%u period:%d", config->config->hk.history_mode,
+	zabbix_log(LOG_LEVEL_TRACE, "  history, mode:%d global:%d period:%d", config->config->hk.history_mode,
 			config->config->hk.history_global, config->config->hk.history);
 
-	zabbix_log(LOG_LEVEL_TRACE, "  trends, mode:%u global:%u period:%d", config->config->hk.trends_mode,
+	zabbix_log(LOG_LEVEL_TRACE, "  trends, mode:%d global:%d period:%d", config->config->hk.trends_mode,
 			config->config->hk.trends_global, config->config->hk.trends);
 
 	zabbix_log(LOG_LEVEL_TRACE, "  default timezone '%s'", config->config->default_timezone);
@@ -149,8 +150,13 @@ static void	DCdump_hosts(void)
 		}
 
 		zabbix_log(LOG_LEVEL_TRACE, "  items:");
-		for (j = 0; j < host->items.values_num; j++)
-			zabbix_log(LOG_LEVEL_TRACE, "    itemid:" ZBX_FS_UI64, host->items.values[j]->itemid);
+
+		zbx_hashset_iter_t	item_iter;
+		ZBX_DC_ITEM_REF		*ref;
+
+		zbx_hashset_iter_reset(&host->items, &item_iter);
+		while (NULL != (ref = (ZBX_DC_ITEM_REF *)zbx_hashset_iter_next(&item_iter)))
+			zabbix_log(LOG_LEVEL_TRACE, "    itemid:" ZBX_FS_UI64, ref->item->itemid);
 	}
 
 	zbx_vector_ptr_destroy(&index);
@@ -550,15 +556,17 @@ static void	DCdump_calcitem(const ZBX_DC_CALCITEM *calcitem)
 	zabbix_log(LOG_LEVEL_TRACE, "  calc:[params:'%s']", calcitem->params);
 }
 
-static void	DCdump_masteritem(const ZBX_DC_MASTERITEM *masteritem)
+static void	DCdump_masteritem(ZBX_DC_MASTERITEM *masteritem)
 {
-	int	i;
+	zbx_hashset_iter_t	iter;
+	zbx_uint64_t		*pitemid;
 
 	zabbix_log(LOG_LEVEL_TRACE, "  dependent:");
-	for (i = 0; i < masteritem->dep_itemids.values_num; i++)
+
+	zbx_hashset_iter_reset(&masteritem->dep_itemids, &iter);
+	while (NULL != (pitemid = (zbx_uint64_t *)zbx_hashset_iter_next(&iter)))
 	{
-		zabbix_log(LOG_LEVEL_TRACE, "    itemid:" ZBX_FS_UI64 " flags:" ZBX_FS_UI64,
-				masteritem->dep_itemids.values[i].first, masteritem->dep_itemids.values[i].second);
+		zabbix_log(LOG_LEVEL_TRACE, "    itemid:" ZBX_FS_UI64, *pitemid);
 	}
 }
 
@@ -579,24 +587,24 @@ static void	DCdump_preprocitem(const ZBX_DC_PREPROCITEM *preprocitem)
 
 static void	DCdump_item_tags(const ZBX_DC_ITEM *item)
 {
-	int			i;
-	zbx_vector_ptr_t	index;
+	int				i;
+	zbx_vector_dc_item_tag_t	index;
 
-	zbx_vector_ptr_create(&index);
+	zbx_vector_dc_item_tag_create(&index);
 
-	zbx_vector_ptr_append_array(&index, item->tags.values, item->tags.values_num);
-	zbx_vector_ptr_sort(&index, ZBX_DEFAULT_UINT64_PTR_COMPARE_FUNC);
+	zbx_vector_dc_item_tag_append_array(&index, item->tags.values, item->tags.values_num);
+	zbx_vector_dc_item_tag_sort(&index, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
 	zabbix_log(LOG_LEVEL_TRACE, "  tags:");
 
 	for (i = 0; i < index.values_num; i++)
 	{
-		zbx_dc_item_tag_t	*tag = (zbx_dc_item_tag_t *)index.values[i];
+		zbx_dc_item_tag_t	*tag = (zbx_dc_item_tag_t *)&index.values[i];
 		zabbix_log(LOG_LEVEL_TRACE, "      tagid:" ZBX_FS_UI64 " tag:'%s' value:'%s'",
 				tag->itemtagid, tag->tag, tag->value);
 	}
 
-	zbx_vector_ptr_destroy(&index);
+	zbx_vector_dc_item_tag_destroy(&index);
 }
 
 static void	DCdump_items(void)
@@ -1607,14 +1615,13 @@ static void	DCdump_proxy_groups(void)
 	zbx_hashset_iter_reset(&config->proxy_groups, &iter);
 	while (NULL != (pg = (zbx_dc_proxy_group_t *)zbx_hashset_iter_next(&iter)))
 	{
-		zabbix_log(LOG_LEVEL_TRACE, "proxy_groupid:" ZBX_FS_UI64 " failover_delay:%d min_online:%d"
+		zabbix_log(LOG_LEVEL_TRACE, "proxy_groupid:" ZBX_FS_UI64 " failover_delay:%s min_online:%s"
 				" revision:" ZBX_FS_UI64,
 				pg->proxy_groupid, pg->failover_delay, pg->min_online, pg->revision);
 	}
 
 	zabbix_log(LOG_LEVEL_TRACE, "End of %s()", __func__);
 }
-
 
 static void	DCdump_host_proxy_index(void)
 {

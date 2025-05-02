@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -63,28 +63,6 @@ else {
 			$is_empty_row = false;
 			$color = $column_config['base_color'];
 
-			if ($column_config['data'] == CWidgetFieldColumnsList::DATA_ITEM_VALUE
-					&& $column_config['display'] == CWidgetFieldColumnsList::DISPLAY_AS_IS
-					&& array_key_exists('thresholds', $column_config)) {
-				$is_numeric_data = in_array($column['item']['value_type'],
-					[ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64]
-				) || CAggFunctionData::isNumericResult($column_config['aggregate_function']);
-
-				if ($is_numeric_data) {
-					foreach ($column_config['thresholds'] as $threshold) {
-						$threshold_value = $column['is_binary_units']
-							? $threshold['threshold_binary']
-							: $threshold['threshold'];
-
-						if ($column['value'] < $threshold_value) {
-							break;
-						}
-
-						$color = $threshold['color'];
-					}
-				}
-			}
-
 			// Create each column's cell display according to configuration and value type.
 			switch ($column_config['data']) {
 				case CWidgetFieldColumnsList::DATA_HOST_NAME:
@@ -108,6 +86,29 @@ else {
 					break;
 
 				case CWidgetFieldColumnsList::DATA_ITEM_VALUE:
+					if (array_key_exists('thresholds', $column_config) && array_key_exists('value', $column)
+							&& ($column_config['display'] == CWidgetFieldColumnsList::DISPLAY_AS_IS
+								|| $column_config['display'] == CWidgetFieldColumnsList::DISPLAY_SPARKLINE)
+							) {
+						$is_numeric_data = in_array($column['item']['value_type'],
+							[ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64]
+						) || CAggFunctionData::isNumericResult($column_config['aggregate_function']);
+
+						if ($is_numeric_data) {
+							foreach ($column_config['thresholds'] as $threshold) {
+								$threshold_value = $column['is_binary_units']
+									? $threshold['threshold_binary']
+									: $threshold['threshold'];
+
+								if ($column['value'] < $threshold_value) {
+									break;
+								}
+
+								$color = $threshold['color'];
+							}
+						}
+					}
+
 					$formatted_value = getFormattedValue($column, $column_config);
 
 					if ($column_config['display_value_as'] == CWidgetFieldColumnsList::DISPLAY_VALUE_AS_BINARY) {
@@ -150,10 +151,24 @@ else {
 							}
 						}
 
-						$row[] = createTextColumn($formatted_value, $column['value'], $color);
+						$row[] = createTextColumn($formatted_value, $column['value'], $color, true);
 					}
 					elseif ($column_config['display'] == CWidgetFieldColumnsList::DISPLAY_AS_IS) {
 						$row[] = createTextColumn($formatted_value, $column['value'], $color);
+					}
+					elseif ($column_config['display'] == CWidgetFieldColumnsList::DISPLAY_SPARKLINE) {
+						$row[] = new CCol((new CSparkline())
+							->setHeight(20)
+							->setColor('#'.$column_config['sparkline']['color'])
+							->setLineWidth($column_config['sparkline']['width'])
+							->setFill($column_config['sparkline']['fill'])
+							->setValue($column['sparkline_value'] ?? [])
+							->setTimePeriodFrom($column_config['sparkline']['time_period']['from_ts'])
+							->setTimePeriodTo($column_config['sparkline']['time_period']['to_ts'])
+						);
+						$row[] = createTextColumn($formatted_value, $column['value'] ?? '', $color)
+							->addStyle('width: 0;')
+							->addClass(ZBX_STYLE_NOWRAP);
 					}
 					else {
 						$bar_gauge = createBarGauge($column, $column_config, $color);
@@ -163,7 +178,6 @@ else {
 							->addStyle('width: 0;')
 							->addItem(
 								(new CDiv($formatted_value))
-									->addClass(ZBX_STYLE_CURSOR_POINTER)
 									->addClass(ZBX_STYLE_NOWRAP)
 									->setHint((new CDiv($column['value']))->addClass(ZBX_STYLE_HINTBOX_WRAP))
 							);
@@ -193,6 +207,10 @@ function shouldUseDoubleColumnHeader(array $column_config): bool {
 }
 
 function getFormattedValue(array $column, array $column_config): string {
+	if (!array_key_exists('value', $column)) {
+		return '';
+	}
+
 	if (in_array($column['item']['value_type'], [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64])) {
 		return formatAggregatedHistoryValue($column['value'], $column['item'], $column_config['aggregate_function'],
 			false, true, [
@@ -229,15 +247,18 @@ function createNonBinaryShowButton(string $column_name): CButton {
 		->setAttribute('data-alt', $column_name);
 }
 
-function createTextColumn(string $formatted_value, string $hint_value, string $color): CCol {
+function createTextColumn(string $formatted_value, string $hint_value, string $color, bool $raw_data = false): CCol {
+	$hint = (new CDiv($hint_value))->addClass(ZBX_STYLE_HINTBOX_WRAP);
+
+	if ($raw_data) {
+		$hint->addClass(ZBX_STYLE_HINTBOX_RAW_DATA);
+	}
+
 	return (new CCol())
 		->setAttribute('bgcolor', $color !== '' ? '#'.$color : null)
 		->addItem(
 			(new CDiv($formatted_value))
-				->addClass(ZBX_STYLE_CURSOR_POINTER)
-				->setHint(
-					(new CDiv($hint_value))->addClass(ZBX_STYLE_HINTBOX_WRAP)
-				)
+				->setHint($hint)
 		);
 }
 

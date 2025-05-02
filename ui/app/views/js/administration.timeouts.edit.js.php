@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -57,22 +57,21 @@
 
 		#resetDefaults(reset_button) {
 			overlayDialogue({
-				'title': <?= json_encode(_('Reset confirmation')) ?>,
-				'class': 'position-middle',
-				'content': document.createElement('span').innerText = <?= json_encode(
+				title: <?= json_encode(_('Reset confirmation')) ?>,
+				content: document.createElement('span').innerText = <?= json_encode(
 					_('Reset all fields to default values?')
 				) ?>,
-				'buttons': [
+				buttons: [
 					{
-						'title': <?= json_encode(_('Cancel')) ?>,
-						'cancel': true,
-						'class': '<?= ZBX_STYLE_BTN_ALT ?>',
-						'action': () => {}
+						title: <?= json_encode(_('Cancel')) ?>,
+						cancel: true,
+						class: '<?= ZBX_STYLE_BTN_ALT ?>',
+						action: () => {}
 					},
 					{
-						'title': <?= json_encode(_('Reset defaults')) ?>,
-						'focused': true,
-						'action': () => {
+						title: <?= json_encode(_('Reset defaults')) ?>,
+						focused: true,
+						action: () => {
 							for (const element of document.querySelectorAll('.wrapper > output[role="contentinfo"]')) {
 								if (element.matches('.msg-good, .msg-bad, .msg-warning')) {
 									element.parentNode.removeChild(element);
@@ -89,7 +88,10 @@
 						}
 					}
 				]
-			}, reset_button);
+			}, {
+				position: Overlay.prototype.POSITION_CENTER,
+				trigger_element: reset_button
+			});
 		}
 	};
 </script>

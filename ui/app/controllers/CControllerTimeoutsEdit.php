@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -22,22 +22,22 @@ class CControllerTimeoutsEdit extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'timeout_zabbix_agent' =>		'db config.timeout_zabbix_agent',
-			'timeout_simple_check' =>		'db config.timeout_simple_check',
-			'timeout_snmp_agent' =>			'db config.timeout_snmp_agent',
-			'timeout_external_check' =>		'db config.timeout_external_check',
-			'timeout_db_monitor' =>			'db config.timeout_db_monitor',
-			'timeout_http_agent' =>			'db config.timeout_http_agent',
-			'timeout_ssh_agent' =>			'db config.timeout_ssh_agent',
-			'timeout_telnet_agent' =>		'db config.timeout_telnet_agent',
-			'timeout_script' =>				'db config.timeout_script',
-			'timeout_browser' =>			'db config.timeout_browser',
-			'socket_timeout' =>				'db config.socket_timeout',
-			'connect_timeout' =>			'db config.connect_timeout',
-			'media_type_test_timeout' =>	'db config.media_type_test_timeout',
-			'script_timeout' =>				'db config.script_timeout',
-			'item_test_timeout' =>			'db config.item_test_timeout',
-			'report_test_timeout' =>		'db config.report_test_timeout'
+			'timeout_zabbix_agent' =>		'setting timeout_zabbix_agent',
+			'timeout_simple_check' =>		'setting timeout_simple_check',
+			'timeout_snmp_agent' =>			'setting timeout_snmp_agent',
+			'timeout_external_check' =>		'setting timeout_external_check',
+			'timeout_db_monitor' =>			'setting timeout_db_monitor',
+			'timeout_http_agent' =>			'setting timeout_http_agent',
+			'timeout_ssh_agent' =>			'setting timeout_ssh_agent',
+			'timeout_telnet_agent' =>		'setting timeout_telnet_agent',
+			'timeout_script' =>				'setting timeout_script',
+			'timeout_browser' =>			'setting timeout_browser',
+			'socket_timeout' =>				'setting socket_timeout',
+			'connect_timeout' =>			'setting connect_timeout',
+			'media_type_test_timeout' =>	'setting media_type_test_timeout',
+			'script_timeout' =>				'setting script_timeout',
+			'item_test_timeout' =>			'setting item_test_timeout',
+			'report_test_timeout' =>		'setting report_test_timeout'
 		];
 
 		$ret = $this->validateInput($fields);

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -25,8 +25,16 @@ abstract class CWidgetFieldMultiSelectView extends CWidgetFieldView {
 	protected array $filter_preselect = [];
 	protected array $popup_parameters = [];
 
+	protected ?int $input_width = ZBX_TEXTAREA_STANDARD_WIDTH;
+
 	public function __construct(CWidgetFieldMultiSelect $field) {
 		$this->field = $field;
+	}
+
+	public function setWidth(?int $input_width): self {
+		$this->input_width = $input_width;
+
+		return $this;
 	}
 
 	abstract protected function getObjectName(): string;
@@ -78,9 +86,11 @@ abstract class CWidgetFieldMultiSelectView extends CWidgetFieldView {
 				$options['custom_select'] = true;
 			}
 
-			$this->multiselect = (new CMultiSelect($options))
-				->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
-				->setAriaRequired($this->isRequired());
+			$this->multiselect = (new CMultiSelect($options))->setAriaRequired($this->isRequired());
+
+			if ($this->input_width !== null) {
+				$this->multiselect->setWidth($this->input_width);
+			}
 		}
 
 		return $this->multiselect;
@@ -88,17 +98,20 @@ abstract class CWidgetFieldMultiSelectView extends CWidgetFieldView {
 
 	public function getJavaScript(): string {
 		return '
-			document.forms["'.$this->form_name.'"].fields["'.$this->field->getName().'"] =
+			CWidgetForm.addField(
 				new CWidgetFieldMultiselect('.json_encode([
-					'field_name' => $this->field->getName(),
-					'field_value' => $this->field->getValue(),
+					'name' => $this->field->getName(),
+					'form_name' => $this->form_name,
+					'multiselect_id' => $this->getMultiSelect()->getId(),
+					'value' => $this->field->getValue(),
 					'in_type' => $this->field->getInType(),
 					'default_prevented' => $this->field->isDefaultPrevented(),
 					'widget_accepted' => $this->field->isWidgetAccepted(),
 					'dashboard_accepted' => $this->field->isDashboardAccepted(),
 					'object_labels' => $this->getObjectLabels(),
 					'params' => $this->getView()->getParams()
-				]).');
+				]).')
+			);
 		';
 	}
 

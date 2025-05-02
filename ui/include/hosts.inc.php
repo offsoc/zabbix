@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -1400,11 +1400,17 @@ function getSanitizedHostPrototypeInterfaceDetailsFields(array $details): array 
 /**
  * Get summary interface availability status.
  *
- * @param array  $interfaces
+ * @param array $interfaces
  *
  * @return int
  */
 function getInterfaceAvailabilityStatus(array $interfaces): int {
+	$interfaces_with_enabled_items = array_filter($interfaces,
+		static fn ($interface) => $interface['has_enabled_items']
+	);
+
+	$interfaces = $interfaces_with_enabled_items ?: $interfaces;
+
 	$available = array_column($interfaces, 'available');
 
 	if (in_array(INTERFACE_AVAILABLE_MIXED, $available)) {

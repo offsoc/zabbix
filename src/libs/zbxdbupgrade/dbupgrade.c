@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -20,6 +20,7 @@
 #include "zbxdb.h"
 #include "zbxstr.h"
 #include "zbx_ha_constants.h"
+#include "zbxdbhigh.h"
 
 #ifdef HAVE_MYSQL
 #	define ZBX_DB_TABLE_OPTIONS	" engine=innodb"
@@ -727,6 +728,8 @@ DBPATCHES_ARRAY_DECL(6040);
 DBPATCHES_ARRAY_DECL(6050);
 DBPATCHES_ARRAY_DECL(7000);
 DBPATCHES_ARRAY_DECL(7010);
+DBPATCHES_ARRAY_DECL(7020);
+DBPATCHES_ARRAY_DECL(7030);
 
 static zbx_dbpatch_t *dbversions[] = {
 	DBPATCH_VERSION(2010), /* 2.2 development */
@@ -760,6 +763,8 @@ static zbx_dbpatch_t *dbversions[] = {
 	DBPATCH_VERSION(6050), /* 7.0 development */
 	DBPATCH_VERSION(7000), /* 7.0 maintenance */
 	DBPATCH_VERSION(7010), /* 7.2 development */
+	DBPATCH_VERSION(7020), /* 7.2 maintenance */
+	DBPATCH_VERSION(7030), /* 7.4 development */
 	NULL
 };
 
@@ -807,12 +812,28 @@ void	zbx_init_library_dbupgrade(zbx_get_program_type_f get_program_type_cb,
 static int	DBcheck_nodes(void)
 {
 	zbx_db_result_t	result;
-	zbx_db_row_t		row;
+	zbx_db_row_t	row;
 	int		ret = SUCCEED, db_time = 0, failover_delay = ZBX_HA_DEFAULT_FAILOVER_DELAY;
 
 	zbx_db_begin();
 
-	result = zbx_db_select("select " ZBX_DB_TIMESTAMP() ",ha_failover_delay from config");
+	/* pre 7.4 has config table */
+	if (SUCCEED == zbx_db_table_exists("config"))
+	{
+		result = zbx_db_select("select " ZBX_DB_TIMESTAMP() ",ha_failover_delay from config");
+	}
+	else if (SUCCEED == zbx_db_table_exists("settings"))
+	{
+		result = zbx_db_select("select " ZBX_DB_TIMESTAMP()
+				", value_str from settings where name='ha_failover_delay'");
+	}
+	else
+	{
+		zbx_db_rollback();
+		THIS_SHOULD_NEVER_HAPPEN;
+		return FAIL;
+	}
+
 	if (NULL != (row = zbx_db_fetch(result)))
 	{
 		db_time = atoi(row[0]);
@@ -896,7 +917,9 @@ int	zbx_db_check_version_and_upgrade(zbx_ha_mode_t ha_mode)
 #ifndef HAVE_SQLITE3
 		zabbix_log(LOG_LEVEL_DEBUG, "%s() \"%s\" does not exist", __func__, dbversion_table_name);
 
-		if (SUCCEED != zbx_db_field_exists("config", "server_check_interval"))
+		if (SUCCEED != zbx_db_field_exists("config", "server_check_interval") &&
+			SUCCEED != zbx_db_table_exists("settings") &&
+			SUCCEED != zbx_db_setting_exists("server_check_interval"))
 		{
 			zabbix_log(LOG_LEVEL_CRIT, "Cannot upgrade database: the database must"
 					" correspond to version 2.0 or later. Exiting ...");

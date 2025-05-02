@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,11 +14,24 @@
 **/
 
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
+require_once __DIR__.'/../../include/CWebTest.php';
 
 class testWidgets extends CWebTest {
 	const HOST_ALL_ITEMS = 'Host for all item value types';
 	const TABLE_SELECTOR = 'xpath://form[@name="itemform"]//table';
+	const USER_MACRO = '{$USER.MACRO}';
+	const USER_MACRO_VALUE = 'Macro function Test 12345';
+	const USER_SECRET_MACRO = '{$SECRET.MACRO}';
+	const MACRO_CHAR = '{$MACRO.CHAR}';
+	const MACRO_HTML_ENCODE = '{$MACRO.HTML.ENCODE}';
+	const MACRO_HTML_ENCODE_VALUE = '<a href="test.url">"test&"</a>';
+	const MACRO_HTML_DECODE = '{$MACRO.HTML.DECODE}';
+	const MACRO_HTML_DECODE_VALUE = '&lt;a href=&quot;test.url&quot;&gt;&quot;test&amp;&quot;&lt;/a&gt;';
+	const MACRO_CHAR_VALUE = '000 ЙщфхжЖŽzŠsšĒĀīī🌴 ₰₰₰';
+	const MACRO_URL_ENCODE = '{$MACRO.URL.ENCODE}';
+	const MACRO_URL_ENCODE_VALUE = 'h://test.com/macro?functions=urlencode&urld=a🎸';
+	const MACRO_URL_DECODE = '{$MACRO.URL.DECODE}';
+	const MACRO_URL_DECODE_VALUE = 'h%3A%2F%2Ftest.com%2Fmacro%3Ffunctions%3Durlencode%26urld%3Da%F0%9F%8E%B8';
 
 	protected static $dashboardid;
 
@@ -33,6 +46,16 @@ class testWidgets extends CWebTest {
 			' ON w.widgetid=wf.widgetid'.
 			' ORDER BY wf.widgetid, wf.name, wf.value_int, wf.value_str, wf.value_groupid, wf.value_itemid,'.
 			' wf.value_graphid, wf.value_hostid';
+
+	/**
+	 * Callback executed before every test case. Automatically accept the alert.
+	 *
+	 * @before
+	 */
+	public function onBeforeTestCase() {
+		parent::onBeforeTestCase();
+		CommandExecutor::setAlertStrategy(CommandExecutor::STRATEGY_ACCEPT_ALERT);
+	}
 
 	/**
 	 * Function which checks that only permitted item types are accessible for widgets.
@@ -51,7 +74,7 @@ class testWidgets extends CWebTest {
 		// Assign the dialog from where the last Select button will be clicked.
 		$select_dialog = $widget_dialog;
 
-		// Item types expected in items table. For the most cases theses are all items except of Binary and dependent.
+		// Item types expected in items table. For the most cases these are all items except of Binary and dependent.
 		$item_types = (in_array($widget, ['Item navigator', 'Item history', 'Honeycomb', 'Top hosts']))
 			? ['Binary item', 'Character item', 'Float item', 'Log item', 'Text item', 'Unsigned item', 'Unsigned_dependent item']
 			: ['Character item', 'Float item', 'Log item', 'Text item', 'Unsigned item', 'Unsigned_dependent item'];
@@ -59,7 +82,8 @@ class testWidgets extends CWebTest {
 		switch ($widget) {
 			case 'Top hosts':
 			case 'Item history':
-				$widget_form->getFieldContainer('Columns')->query('button:Add')->one()->waitUntilClickable()->click();
+				$container = ($widget === 'Top hosts') ? 'Columns' : 'Items';
+				$widget_form->getFieldContainer($container)->query('button:Add')->one()->waitUntilClickable()->click();
 				$column_dialog = COverlayDialogElement::find()->all()->last()->waitUntilReady();
 				$select_dialog = $column_dialog;
 				break;
@@ -109,16 +133,14 @@ class testWidgets extends CWebTest {
 
 		// Fill the host name and check the table.
 		$items_dialog->query('class:multiselect-control')->asMultiselect()->one()->fill(self::HOST_ALL_ITEMS);
+		$items_dialog->query('button:Select')->waitUntilClickable();
 		$table->waitUntilReloaded();
+		$items_dialog->waitUntilReady();
+		$items_dialog->query('button:Select')->waitUntilClickable();
 		$this->assertTableDataColumn($item_types, 'Name', self::TABLE_SELECTOR);
 
 		// Close all dialogs.
-		$dialogs = COverlayDialogElement::find()->all();
-
-		$dialog_count = $dialogs->count();
-		for ($i = $dialog_count - 1; $i >= 0; $i--) {
-			$dialogs->get($i)->close(true);
-		}
+		COverlayDialogElement::closeAll();
 	}
 
 	/**
@@ -309,5 +331,23 @@ class testWidgets extends CWebTest {
 		}
 
 		return $db_values;
+	}
+
+	/**
+	 * Assert range input attributes.
+	 *
+	 * @param CFormElement $form               parent form
+	 * @param string       $field              id or label of the range input
+	 * @param array        $expected_values    the attribute values expected
+	 */
+	public function assertRangeSliderParameters($form, $field, $expected_values) {
+		$path = (COverlayDialogElement::find()->one()->asForm()->getField('Type')->getText() == 'Pie chart')
+			? 'xpath:.//'
+			: 'xpath://div/';
+		$range = $form->getField($field)->query($path.'input[@type="range"]')->one();
+
+		foreach ($expected_values as $attribute => $expected_value) {
+			$this->assertEquals($expected_value, $range->getAttribute($attribute));
+		}
 	}
 }

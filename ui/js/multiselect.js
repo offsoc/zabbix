@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -141,15 +141,15 @@
 				var $obj = $(this),
 					ms = $obj.data('multiSelect');
 
-				if (ms.options.disabled === true) {
-					$obj.removeAttr('aria-disabled');
-					$('.multiselect-list', $obj).removeClass('disabled');
-					$('.multiselect-button', $obj.parent()).prop('disabled', false);
-					$('.multiselect-optional-select-button', $obj.parent()).prop('disabled', false);
-					$('input', $obj).prop('disabled', false);
-					$obj.append(makeMultiSelectInput($obj));
+				$obj.removeAttr('aria-disabled');
+				$('.multiselect-list', $obj).removeClass('disabled');
+				$('.multiselect-button', $obj.parent()).prop('disabled', false);
+				$('.multiselect-optional-select-button', $obj.parent()).prop('disabled', false);
+				$('input', $obj).prop('disabled', false);
 
+				if (ms.options.disabled === true) {
 					ms.options.disabled = false;
+					$obj.append(makeMultiSelectInput($obj));
 
 					cleanSearch($obj);
 				}
@@ -166,15 +166,15 @@
 				var $obj = $(this),
 					ms = $obj.data('multiSelect');
 
-				if (ms.options.disabled === false) {
-					$obj.attr('aria-disabled', true);
-					$('.multiselect-list', $obj).addClass('disabled');
-					$('.multiselect-button', $obj.parent()).prop('disabled', true);
-					$('.multiselect-optional-select-button', $obj.parent()).prop('disabled', true);
-					$('input[type="text"]', $obj).remove();
-					$('input', $obj).prop('disabled', true);
+				$obj.attr('aria-disabled', true);
+				$('.multiselect-list', $obj).addClass('disabled');
+				$('.multiselect-button', $obj.parent()).prop('disabled', true);
+				$('.multiselect-optional-select-button', $obj.parent()).prop('disabled', true);
+				$('input', $obj).prop('disabled', true);
 
+				if (ms.options.disabled === false) {
 					ms.options.disabled = true;
+					$('input[type="text"]', $obj).remove();
 
 					cleanSearch($obj);
 				}
@@ -255,7 +255,7 @@
 						.each(function() {
 							var id = $(this).val();
 							$('.selected li[data-id]', $obj).each(function() {
-								if ($(this).data('id') == id) {
+								if (this.dataset.id === id) {
 									$(this).toggle(ms.options['addNew']);
 								}
 							});
@@ -732,7 +732,7 @@
 								var $selected = $('li.suggest-hover', ms.values.available_div);
 
 								if ($selected.length) {
-									select($obj, $selected.data('id'));
+									select($obj, $selected[0].dataset.id);
 									$aria_live.text(sprintf(t('Added, %1$s'), $selected.data('label')));
 								}
 
@@ -798,11 +798,11 @@
 								var $selected = $('.selected li.selected', $obj);
 
 								if ($selected.length) {
-									var id = $selected.data('id'),
-										item = ms.values.selected[id];
+									const id = $selected[0].dataset.id;
+									const item = ms.values.selected[id];
 
-									if (typeof item.disabled === 'undefined' || !item.disabled) {
-										var aria_text = sprintf(t('Removed, %1$s'), $selected.data('label'));
+									if (item.disabled === undefined || !item.disabled) {
+										let aria_text = sprintf(t('Removed, %1$s'), $selected.data('label'));
 
 										$selected = (e.which == KEY_BACKSPACE)
 											? ($selected.is(':first-child')
@@ -1029,12 +1029,12 @@
 	}
 
 	function removeSelected($obj, id) {
-		var ms = $obj.data('multiSelect');
+		const ms = $obj.data('multiSelect');
 
 		$obj.trigger('before-remove', ms);
 
 		$('.multiselect-list [data-id]', $obj).each(function() {
-			if ($(this).data('id') == id) {
+			if (this.dataset.id == id) {
 				$(this).remove();
 			}
 		});

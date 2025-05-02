@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -247,12 +247,16 @@ foreach ($data['discoveries'] as $discovery) {
 			$description[] = $discovery['master_item']['name'];
 		}
 		else {
-			$description[] = (new CLink($discovery['master_item']['name']))
+			$item_url = (new CUrl('zabbix.php'))
+				->setArgument('action', 'popup')
+				->setArgument('popup', 'item.edit')
+				->setArgument('context', $data['context'])
+				->setArgument('itemid', $discovery['master_item']['itemid'])
+				->getUrl();
+
+			$description[] = (new CLink($discovery['master_item']['name'], $item_url))
 				->addClass(ZBX_STYLE_LINK_ALT)
-				->addClass(ZBX_STYLE_TEAL)
-				->addClass('js-update-item')
-				->setAttribute('data-itemid', $discovery['master_item']['itemid'])
-				->setAttribute('data-context', $data['context']);
+				->addClass(ZBX_STYLE_TEAL);
 		}
 
 		$description[] = NAME_DELIMITER;
@@ -311,15 +315,18 @@ foreach ($data['discoveries'] as $discovery) {
 		$checkbox->setAttribute('data-actions', 'execute');
 	}
 
-	$host = (new CLink($discovery['hosts'][0]['name']))
-		->setAttribute('data-hostid', $discovery['hosts'][0]['hostid'])
-		->addClass('js-edit-'.$data['context'])
-		->addClass(ZBX_STYLE_WORDBREAK);
+	$host_url = (new CUrl('zabbix.php'))
+		->setArgument('action', 'popup')
+		->setArgument('popup', $data['context'] === 'host' ? 'host.edit' : 'template.edit')
+		->setArgument($data['context'] === 'host' ? 'hostid' : 'templateid', $discovery['hosts'][0]['hostid'])
+		->getUrl();
+
+	$host = new CLink($discovery['hosts'][0]['name'], $host_url);
 
 	$discoveryTable->addRow([
 		$checkbox,
 		$host,
-		(new CCol($description))->addClass(ZBX_STYLE_WORDBREAK),
+		$description,
 		[
 			new CLink(_('Item prototypes'),
 				(new CUrl('zabbix.php'))
@@ -340,22 +347,21 @@ foreach ($data['discoveries'] as $discovery) {
 		],
 		[
 			new CLink(_('Graph prototypes'),
-				(new CUrl('graphs.php'))
+				(new CUrl('zabbix.php'))
+					->setArgument('action', 'graph.prototype.list')
 					->setArgument('parent_discoveryid', $discovery['itemid'])
 					->setArgument('context', $data['context'])
 			),
 			CViewHelper::showNum($discovery['graphs'])
 		],
-		($discovery['hosts'][0]['flags'] == ZBX_FLAG_DISCOVERY_NORMAL)
-			? [
-				new CLink(_('Host prototypes'),
-					(new CUrl('host_prototypes.php'))
-						->setArgument('parent_discoveryid', $discovery['itemid'])
-						->setArgument('context', $data['context'])
-				),
-				CViewHelper::showNum($discovery['hostPrototypes'])
-			]
-			: '',
+		[
+			new CLink(_('Host prototypes'),
+				(new CUrl('host_prototypes.php'))
+					->setArgument('parent_discoveryid', $discovery['itemid'])
+					->setArgument('context', $data['context'])
+			),
+			CViewHelper::showNum($discovery['hostPrototypes'])
+		],
 		(new CDiv($discovery['key_']))->addClass(ZBX_STYLE_WORDWRAP),
 		$discovery['delay'],
 		item_type2str($discovery['type']),

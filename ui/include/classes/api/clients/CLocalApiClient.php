@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -49,7 +49,7 @@ class CLocalApiClient extends CApiClient {
 	 * @param string $requestMethod  API method.
 	 * @param array  $params         API parameters.
 	 * @param array  $auth
-	 * @param int    $auth['type']   CJsonRpc::AUTH_TYPE_PARAM, CJsonRpc::AUTH_TYPE_HEADER, CJsonRpc::AUTH_TYPE_COOKIE
+	 * @param int    $auth['type']   CJsonRpc::AUTH_TYPE_HEADER, CJsonRpc::AUTH_TYPE_COOKIE
 	 * @param string $auth['auth']   Authentication token.
 	 *
 	 * @return CApiClientResponse
@@ -81,21 +81,12 @@ class CLocalApiClient extends CApiClient {
 		$requiresAuthentication = $this->requiresAuthentication($api, $method);
 
 		// check that no authentication token is passed to methods that don't require it
-		if (!$requiresAuthentication) {
-			if ($auth['type'] == CJsonRpc::AUTH_TYPE_COOKIE) {
-				$auth['auth'] = null;
-			}
+		if (!$requiresAuthentication && $auth['type'] != CJsonRpc::AUTH_TYPE_COOKIE && $auth['auth'] !== null) {
+			$error = _('The "%1$s.%2$s" method must be called without authorization header.');
+			$response->errorCode = ZBX_API_ERROR_PARAMETERS;
+			$response->errorMessage = _params($error, [$requestApi, $requestMethod]);
 
-			if ($auth['auth'] !== null) {
-				$error = $auth['type'] == CJsonRpc::AUTH_TYPE_HEADER
-					? _('The "%1$s.%2$s" method must be called without authorization header.')
-					: _('The "%1$s.%2$s" method must be called without the "auth" parameter.');
-
-				$response->errorCode = ZBX_API_ERROR_PARAMETERS;
-				$response->errorMessage = _params($error, [$requestApi, $requestMethod]);
-
-				return $response;
-			}
+			return $response;
 		}
 
 		$newTransaction = false;
@@ -127,7 +118,11 @@ class CLocalApiClient extends CApiClient {
 
 			// if the method was called successfully - commit the transaction
 			if ($newTransaction) {
-				DBend(true);
+				$committed = DBend(true);
+
+				if (!$committed && APP::getMode() === APP::EXEC_MODE_API) {
+					throw new DBException(_('Database error occurred.'), DB::DBEXECUTE_ERROR);
+				}
 			}
 
 			$response->data = $result;
@@ -137,7 +132,11 @@ class CLocalApiClient extends CApiClient {
 				// if we're calling user.login and authentication failed - commit the transaction to save the
 				// failed attempt data
 				if ($api === 'user' && $method === 'login') {
-					DBend(true);
+					$committed = DBend(true);
+
+					if (!$committed) {
+						$e = new DBException(_('Database error occurred.'), DB::DBEXECUTE_ERROR);
+					}
 				}
 				// otherwise - revert the transaction
 				else {
@@ -145,11 +144,16 @@ class CLocalApiClient extends CApiClient {
 				}
 			}
 
-			if ($e instanceof DBException) {
-				throw $e;
+			if ($e instanceof APIException) {
+				$response->errorCode = $e->getCode();
+			}
+			elseif ($e instanceof DBException) {
+				$response->errorCode = ZBX_API_ERROR_DB;
+			}
+			else {
+				$response->errorCode = ZBX_API_ERROR_INTERNAL;
 			}
 
-			$response->errorCode = ($e instanceof APIException) ? $e->getCode() : ZBX_API_ERROR_INTERNAL;
 			$response->errorMessage = $e->getMessage();
 
 			// add debug data

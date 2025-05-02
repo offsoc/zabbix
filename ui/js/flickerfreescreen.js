@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -285,7 +285,7 @@
 		},
 
 		refreshMap: function(id) {
-			var screen = this.screens[id];
+			const screen = this.screens[id];
 
 			if (screen.isRefreshing) {
 				this.calculateReRefresh(id);
@@ -297,19 +297,21 @@
 
 				this.setElementProgressState(id, true);
 
-				var url = new Curl(screen.data.options.refresh);
+				const url = new Curl(screen.data.options.refresh);
+
 				url.setArgument('curtime', new CDate().getTime());
 
 				$.ajax({
 					'url': url.getUrl()
 				})
-				.fail(function() {
+				.fail(() => {
 					screen.error++;
 					window.flickerfreeScreen.calculateReRefresh(id);
 				})
-				.done(function(data) {
+				.done((data) => {
 					data.show_timestamp = screen.data.options.show_timestamp;
 					screen.isRefreshing = false;
+					data.caller = 'refreshMap';
 					screen.data.update(data);
 					$(screen.data.container).attr('aria-label', data.aria_label);
 					screen.timestamp = screen.timestampActual;

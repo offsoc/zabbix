@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -14,10 +14,10 @@
 **/
 
 
-require_once dirname(__FILE__).'/../common/testFormAdministrationGeneral.php';
+require_once __DIR__.'/../common/testFormAdministrationGeneral.php';
 
 /**
- * @backup config
+ * @backup settings
  */
 class testFormAdministrationHousekeeping extends testFormAdministrationGeneral {
 
@@ -36,7 +36,7 @@ class testFormAdministrationHousekeeping extends testFormAdministrationGeneral {
 		'id:hk_services' => '365d',
 		// User sessions.
 		'id:hk_sessions_mode' => true,
-		'id:hk_sessions' => '365d',
+		'id:hk_sessions' => '31d',
 		// History.
 		'id:hk_history_mode' => true,
 		'id:hk_history_global' => false,
@@ -56,7 +56,7 @@ class testFormAdministrationHousekeeping extends testFormAdministrationGeneral {
 		'hk_services_mode' => 1,
 		'hk_services' => '365d',
 		'hk_sessions_mode' => 1,
-		'hk_sessions' => '365d',
+		'hk_sessions' => '31d',
 		'hk_history_mode' => 1,
 		'hk_history_global' => 0,
 		'hk_history' => '31d',
@@ -1597,7 +1597,7 @@ class testFormAdministrationHousekeeping extends testFormAdministrationGeneral {
 
 	/**
 	 * Backup in needed because of DEV-1673, and can be removed after bug is fixed.
-	 * @backup config
+	 * @backup settings
 	 *
 	 * @dataProvider getCheckFormData
 	 */

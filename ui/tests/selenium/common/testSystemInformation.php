@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -13,12 +13,12 @@
 ** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
+require_once __DIR__.'/../../include/CWebTest.php';
+require_once __DIR__.'/../../include/helpers/CDataHelper.php';
 
 class testSystemInformation extends CWebTest {
 
-	const FAILOVER_DELAY = 8;
+	const FAILOVER_DELAY = 20;
 
 	public static $active_lastaccess;
 	public static $update_timestamp;
@@ -78,7 +78,7 @@ class testSystemInformation extends CWebTest {
 		];
 
 		// Update Zabbix frontend config to make sure that the address of the active node is shown correctly in tests.
-		$file_path = dirname(__FILE__).'/../../../conf/zabbix.conf.php';
+		$file_path = __DIR__.'/../../../conf/zabbix.conf.php';
 		$pattern = array('/[$]ZBX_SERVER/','/[$]ZBX_SERVER_PORT/');
 		$replace = array('// $ZBX_SERVER','// $ZBX_SERVER_PORT');
 		$content = preg_replace($pattern, $replace, file_get_contents($file_path), 1);
@@ -98,7 +98,7 @@ class testSystemInformation extends CWebTest {
 
 	// Change failover delay not to wait too long for server to update its status.
 	public static function changeFailoverDelay() {
-		DBexecute('UPDATE config SET ha_failover_delay='.self::FAILOVER_DELAY);
+		DBexecute('UPDATE settings SET value_str='.self::FAILOVER_DELAY.' WHERE name=\'ha_failover_delay\'');
 	}
 
 	/**
@@ -177,8 +177,10 @@ class testSystemInformation extends CWebTest {
 			self::$skip_fields[] = $this->query('xpath://footer')->one();
 		}
 
-		// Hide frontend version.
-		self::$skip_fields[] = $this->query('xpath://table[@class="list-table sticky-header"]/tbody/tr[3]/td[1]')->one();
+		// Remove zabbix version due to unstable screenshot which depends on column width with different version length.
+		CElementQuery::getDriver()->executeScript("arguments[0].textContent = '';",
+				[$this->query('xpath://table[@class="list-table sticky-header"]/tbody/tr[3]/td[1]')->one()]
+		);
 
 		// Check and hide the text of messages, because they contain ip addresses of the current host.
 		$error_text = "Connection to Zabbix server \"".$DB['SERVER'].":0\" failed. Possible reasons:\n".

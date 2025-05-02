@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -240,7 +240,7 @@ const char	*zbx_socket_strerror(void);
 #if !defined(_WINDOWS) && !defined(__MINGW32__)
 void	zbx_gethost_by_ip(const char *ip, char *host, size_t hostlen);
 void	zbx_getip_by_host(const char *host, char *ip, size_t iplen);
-int	zbx_inet_ntop(struct addrinfo *ai, char *ip, socklen_t len);
+int	zbx_inet_ntop(struct sockaddr *ai_addr, char *ip, socklen_t len);
 #endif
 int	zbx_inet_pton(int af, const char *src, void *dst);
 

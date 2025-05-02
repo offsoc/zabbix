@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -21,7 +21,7 @@
  * @var array $data
  */
 
-$form = (new CWidgetFormView($data));
+$form = new CWidgetFormView($data);
 
 $form
 	->addField(
@@ -61,7 +61,7 @@ $form
 			->addClass('js-fieldset-adv-conf')
 	)
 	->includeJsFile('widget.edit.js.php')
-	->addJavaScript('widget_clock_form.init();')
+	->initFormJs('widget_form.init();')
 	->show();
 
 function getDateFieldsGroupView(array $fields): CWidgetFieldsGroupView {

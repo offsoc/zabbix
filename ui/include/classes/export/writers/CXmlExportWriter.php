@@ -1,6 +1,6 @@
 <?php
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -97,10 +97,10 @@ class CXmlExportWriter extends CExportWriter {
 			'graphs' => 'graph',
 			'group_links' => 'group_link',
 			'group_prototypes' => 'group_prototype',
-			'host_groups' => 'host_group',
-			'template_groups' => 'template_group',
 			'groups' => 'group',
 			'headers' => 'header',
+			'highlights' => 'highlight',
+			'host_groups' => 'host_group',
 			'host_prototypes' => 'host_prototype',
 			'hosts' => 'host',
 			'httptests' => 'httptest',
@@ -128,7 +128,9 @@ class CXmlExportWriter extends CExportWriter {
 			'shapes' => 'shape',
 			'steps' => 'step',
 			'tags' => 'tag',
+			'template_groups' => 'template_group',
 			'templates' => 'template',
+			'thresholds' => 'threshold',
 			'tls_accept' => 'option',
 			'trigger_prototypes' => 'trigger_prototype',
 			'triggers' => 'trigger',

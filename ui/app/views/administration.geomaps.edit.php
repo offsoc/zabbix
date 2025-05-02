@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -70,7 +70,7 @@ $form_grid = (new CFormGrid())
 		(new CLabel([_('Tile URL'), $hintbox_tile_url], 'geomaps_tile_url'))->setAsteriskMark(),
 		new CFormField(
 			(new CTextBox('geomaps_tile_url', $data['geomaps_tile_url'], false,
-				DB::getFieldLength('config', 'geomaps_tile_url'))
+				CSettingsSchema::getFieldLength('geomaps_tile_url'))
 			)
 				->setWidth(ZBX_TEXTAREA_BIG_WIDTH)
 				->setReadonly($data['geomaps_tile_provider'] !== '')
@@ -84,7 +84,7 @@ $form_grid = (new CFormGrid())
 			(new CTextArea('geomaps_attribution', $data['geomaps_attribution']))
 				->addClass(ZBX_STYLE_MONOSPACE_FONT)
 				->setWidth(ZBX_TEXTAREA_BIG_WIDTH)
-				->setMaxLength(DB::getFieldLength('config', 'geomaps_attribution'))
+				->setMaxLength(CSettingsSchema::getFieldLength('geomaps_attribution'))
 		))->addClass($data['geomaps_tile_provider'] !== '' ? ZBX_STYLE_DISPLAY_NONE : null)
 	])
 	->addItem([

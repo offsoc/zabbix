@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2024 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
 ** This program is free software: you can redistribute it and/or modify it under the terms of
 ** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
@@ -95,6 +95,7 @@ const char	*zbx_result_string(int result);
 
 #define ZBX_MAX_UINT64		(~__UINT64_C(0))
 #define ZBX_MAX_UINT64_LEN	21
+#define ZBX_MAX_UINT32_LEN	11
 #define ZBX_MAX_DOUBLE_LEN	24
 
 #define ZBX_SIZE_T_MAX	(~(size_t)0)
@@ -415,7 +416,7 @@ while (0)
 		THIS_SHOULD_NEVER_HAPPEN;									\
 		zbx_error(__VA_ARGS__);									\
 	}													\
-	while(0)
+	while (0)
 #else
 #	define THIS_SHOULD_NEVER_HAPPEN_MSG									\
 			THIS_SHOULD_NEVER_HAPPEN;								\
@@ -608,6 +609,9 @@ wchar_t	*zbx_oemcp_to_unicode(const char *oemcp_string);
 char	**zbx_setproctitle_init(int argc, char **argv);
 void	zbx_setproctitle(const char *fmt, ...) __zbx_attr_format_printf(1, 2);
 void	zbx_setproctitle_deinit(void);
+#if !defined(_WINDOWS) && !defined(__MINGW32__)
+void	zbx_unsetenv(const char *envname);
+#endif
 
 void	zbx_error(const char *fmt, ...) __zbx_attr_format_printf(1, 2);
 
@@ -706,8 +710,6 @@ int	zbx_alarm_timed_out(void);
 #define ZBX_PREPROC_FAIL_SET_VALUE	2
 #define ZBX_PREPROC_FAIL_SET_ERROR	3
 
-
-
 /* includes terminating '\0' */
 #define CUID_LEN	26
 void	zbx_new_cuid(char *cuid);
@@ -789,7 +791,7 @@ static	type2	get_##varname(void) \
 typedef void (*zbx_log_func_t)(int level, const char *fmt, va_list args);
 
 void	zbx_init_library_common(zbx_log_func_t log_func, zbx_get_progname_f get_progname, zbx_backtrace_f backtrace);
-void	zbx_log_handle(int level, const char *fmt, ...);
+void	zbx_log_handle(int level, const char *fmt, ...) __zbx_attr_format_printf(2, 3);
 int	zbx_get_log_level(void);
 void	zbx_set_log_level(int level);
 const char	*zbx_get_log_component_name(void);
