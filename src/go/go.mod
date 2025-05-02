@@ -1,6 +1,7 @@
 module golang.zabbix.com/agent2
 
 go 1.21
+toolchain go1.24.1
 
 require (
 	github.com/BurntSushi/locker v0.0.0-20171006230638-a6e239ea1c69
@@ -24,10 +25,10 @@ require (
 	github.com/miekg/dns v1.1.55
 	github.com/omeid/go-yarn v0.0.1
 	github.com/sokurenko/go-netstat v1.0.0
-	golang.org/x/net v0.34.0
-	golang.org/x/sync v0.10.0
-	golang.org/x/sys v0.29.0
-	golang.org/x/text v0.21.0
+	golang.org/x/net v0.38.0
+	golang.org/x/sync v0.12.0
+	golang.org/x/sys v0.31.0
+	golang.org/x/text v0.23.0
 	golang.zabbix.com/sdk v1.2.2-0.20250403095654-252de657aa7c
 )
 
