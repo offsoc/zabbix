@@ -94,6 +94,7 @@ zbx_lld_entry_t;
 ZBX_PTR_VECTOR_DECL(lld_entry_ptr, zbx_lld_entry_t *)
 
 void	lld_entry_clear(zbx_lld_entry_t *entry);
+void	lld_entry_clear_wrapper(void *data);
 
 zbx_hash_t	lld_entry_hash(const void *data);
 int	lld_entry_compare(const void *d1, const void *d2);
@@ -243,8 +244,10 @@ typedef struct
 	int					evaltype;
 	int					item_flags;
 
+#define ZBX_LLD_ITEM_PROTOTYPE_MACRO_PATH_COLS_NUM	2
+#define ZBX_LLD_ITEM_PROTOTYPE_FILTERS_COLS_NUM		3
 	zbx_sync_rowset_t			macro_paths;
-	zbx_sync_rowset_t                       filters;
+	zbx_sync_rowset_t			filters;
 	zbx_sync_rowset_t			overrides;
 }
 zbx_lld_item_prototype_t;
@@ -439,20 +442,21 @@ int	lld_validate_lldrule_override_no_discover(const zbx_vector_lld_override_ptr_
 
 int	lld_update_items(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, zbx_vector_lld_row_ptr_t *lld_rows, char **error,
 		const zbx_lld_lifetime_t *lifetime, const zbx_lld_lifetime_t *enabled_lifetime, int lastcheck,
-		int dflags, zbx_hashset_t *rule_index);
+		int dflags, zbx_hashset_t *rule_index, const zbx_vector_uint64_t *ruleids);
 
 void	lld_item_links_sort(zbx_vector_lld_row_ptr_t *lld_rows);
 
 int	lld_update_triggers(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_vector_lld_row_ptr_t *lld_rows,
 		char **error, const zbx_lld_lifetime_t *lifetime, const zbx_lld_lifetime_t *enabled_lifetime,
-		int lastcheck, int dflags);
+		int lastcheck, int dflags, const zbx_vector_uint64_t *ruleids);
 
 int	lld_update_graphs(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_vector_lld_row_ptr_t *lld_rows,
-		char **error, const zbx_lld_lifetime_t *lifetime, int lastcheck, int dflags);
+		char **error, const zbx_lld_lifetime_t *lifetime, int lastcheck, int dflags,
+		const zbx_vector_uint64_t *ruleids);
 
 void	lld_update_hosts(zbx_uint64_t lld_ruleid, const zbx_vector_lld_row_ptr_t *lld_rows, char **error,
 		const zbx_lld_lifetime_t *lifetime, const zbx_lld_lifetime_t *enabled_lifetime, int lastcheck,
-		int dflags, zbx_hashset_t *rule_index);
+		int dflags, zbx_hashset_t *rule_index, const zbx_vector_uint64_t *ruleids);
 
 int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_ptr_t *lld_rows,
 		const zbx_vector_lld_item_prototype_ptr_t *item_prototypes, zbx_vector_lld_item_full_ptr_t *items,
@@ -556,7 +560,7 @@ void	lld_rule_get_prototype_overrides(zbx_vector_lld_item_prototype_ptr_t *item_
 		zbx_vector_uint64_t *protoids);
 void	lld_rule_fetch_override_data(zbx_vector_lld_override_data_ptr_t *overrides);
 void	lld_override_dump(zbx_sync_rowset_t *rowset);
-void	lld_rule_process_nested_rule(zbx_uint64_t hostid, zbx_uint64_t itemid, const zbx_lld_row_t *lld_row);
+void	lld_rule_process_nested_rule(zbx_uint64_t itemid, const zbx_lld_row_t *lld_row);
 
 void	lld_rule_macro_paths_make(zbx_vector_lld_item_full_ptr_t *items);
 void	lld_rule_filters_make(zbx_vector_lld_item_full_ptr_t *items, char **info);
@@ -565,5 +569,7 @@ void	lld_rule_overrides_make(zbx_vector_lld_item_full_ptr_t *items, char **info)
 int	lld_rule_filters_save(zbx_uint64_t hostid, zbx_vector_lld_item_full_ptr_t *items, int *host_locked);
 int	lld_items_overrides_save(zbx_uint64_t hostid, zbx_vector_lld_item_full_ptr_t *items, int *host_locked);
 int	lld_rule_macro_paths_save(zbx_uint64_t hostid, zbx_vector_lld_item_full_ptr_t *items, int *host_locked);
+
+int	lld_text_has_lld_macro(const char *text);
 
 #endif

@@ -13,7 +13,6 @@
 **/
 
 #include "lld.h"
-#include "zbxexpression.h"
 
 #include "zbxregexp.h"
 #include "audit/zbxaudit.h"
@@ -26,6 +25,7 @@
 #include "zbxexpr.h"
 #include "zbxstr.h"
 #include "zbxtime.h"
+#include "zbxcalc.h"
 
 ZBX_PTR_VECTOR_IMPL(lld_item_link_ptr, zbx_lld_item_link_t*)
 ZBX_PTR_VECTOR_IMPL(lld_row_ptr, zbx_lld_row_t*)
@@ -1182,7 +1182,7 @@ int	lld_process_discovery_rule(zbx_dc_item_t *item, zbx_vector_lld_entry_ptr_t *
 	zbx_audit_init(cfg.auditlog_enabled, cfg.auditlog_mode, ZBX_AUDIT_LLD_CONTEXT);
 
 	if (SUCCEED != lld_update_items(hostid, item->itemid, &lld_rows, error, &lifetime, &enabled_lifetime, now,
-			ZBX_FLAG_DISCOVERY_NORMAL, NULL))
+			ZBX_FLAG_DISCOVERY_NORMAL, NULL, NULL))
 	{
 		zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add items because parent host was removed while"
 				" processing lld rule");
@@ -1192,7 +1192,7 @@ int	lld_process_discovery_rule(zbx_dc_item_t *item, zbx_vector_lld_entry_ptr_t *
 	lld_item_links_sort(&lld_rows);
 
 	if (SUCCEED != lld_update_triggers(hostid, item->itemid, &lld_rows, error, &lifetime, &enabled_lifetime, now,
-			ZBX_FLAG_DISCOVERY_NORMAL))
+			ZBX_FLAG_DISCOVERY_NORMAL, NULL))
 	{
 		zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add triggers because parent host was removed while"
 				" processing lld rule");
@@ -1200,7 +1200,7 @@ int	lld_process_discovery_rule(zbx_dc_item_t *item, zbx_vector_lld_entry_ptr_t *
 	}
 
 	if (SUCCEED != lld_update_graphs(hostid, item->itemid, &lld_rows, error, &lifetime, now,
-			ZBX_FLAG_DISCOVERY_NORMAL))
+			ZBX_FLAG_DISCOVERY_NORMAL, NULL))
 	{
 		zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add graphs because parent host was removed while"
 				" processing lld rule");
@@ -1208,7 +1208,7 @@ int	lld_process_discovery_rule(zbx_dc_item_t *item, zbx_vector_lld_entry_ptr_t *
 	}
 
 	lld_update_hosts(item->itemid, &lld_rows, error, &lifetime, &enabled_lifetime, now, ZBX_FLAG_DISCOVERY_NORMAL,
-			NULL);
+			NULL, NULL);
 
 	/* add informative warning to the error message about lack of data for macros used in filter */
 	if (NULL != info)
@@ -1243,4 +1243,30 @@ out:
 
 	return ret;
 #undef LIFETIME_DURATION_GET
+}
+
+/******************************************************************************
+ *                                                                            *
+ * Purpose: check if text contains LLD macros                                 *
+ *                                                                            *
+ * Parameters: text - [IN] text to check for LLD macros                       *
+ *                                                                            *
+ * Return value: SUCCEED - text contains LLD macros                           *
+ *               FAIL    - text does not contain LLD macros                   *
+ *                                                                            *
+ ******************************************************************************/
+int	lld_text_has_lld_macro(const char *text)
+{
+	zbx_token_t	token;
+	int		pos = 0;
+
+	while (SUCCEED == zbx_token_find(text, pos, &token, ZBX_TOKEN_SEARCH_BASIC))
+	{
+		if (ZBX_TOKEN_LLD_MACRO == token.type || ZBX_TOKEN_LLD_FUNC_MACRO == token.type)
+			return SUCCEED;
+
+		pos++;
+	}
+
+	return FAIL;
 }

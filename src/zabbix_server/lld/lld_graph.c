@@ -13,7 +13,6 @@
 **/
 
 #include "lld.h"
-#include "zbxexpression.h"
 
 #include "zbxdbwrap.h"
 #include "audit/zbxaudit.h"
@@ -23,6 +22,7 @@
 #include "zbxalgo.h"
 #include "zbxdb.h"
 #include "zbxdbhigh.h"
+#include "zbxexpr.h"
 
 typedef struct
 {
@@ -251,22 +251,42 @@ static void	lld_graphs_free(zbx_vector_lld_graph_ptr_t *graphs)
 static void	lld_graphs_get(zbx_uint64_t parent_graphid, zbx_vector_lld_graph_ptr_t *graphs, int width, int height,
 		double yaxismin, double yaxismax, unsigned char show_work_period, unsigned char show_triggers,
 		unsigned char graphtype, unsigned char show_legend, unsigned char show_3d, double percent_left,
-		double percent_right, unsigned char ymin_type, unsigned char ymax_type, unsigned char discover)
+		double percent_right, unsigned char ymin_type, unsigned char ymax_type, unsigned char discover,
+		const zbx_vector_uint64_t *ruleids)
 {
 	zbx_db_result_t	result;
 	zbx_db_row_t	row;
+	char		*sql = NULL;
+	size_t		sql_alloc = 0, sql_offset = 0;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
-	result = zbx_db_select(
-			"select g.graphid,g.name,g.width,g.height,g.yaxismin,g.yaxismax,g.show_work_period,"
-				"g.show_triggers,g.graphtype,g.show_legend,g.show_3d,g.percent_left,g.percent_right,"
-				"g.ymin_type,g.ymin_itemid,g.ymax_type,g.ymax_itemid,gd.lastcheck,gd.status,"
-				"gd.ts_delete,g.discover"
-			" from graphs g,graph_discovery gd"
-			" where g.graphid=gd.graphid"
-				" and gd.parent_graphid=" ZBX_FS_UI64,
-			parent_graphid);
+	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+		"select g.graphid,g.name,g.width,g.height,g.yaxismin,g.yaxismax,g.show_work_period,"
+			"g.show_triggers,g.graphtype,g.show_legend,g.show_3d,g.percent_left,g.percent_right,"
+			"g.ymin_type,g.ymin_itemid,g.ymax_type,g.ymax_itemid,gd.lastcheck,gd.status,"
+			"gd.ts_delete,g.discover"
+		" from graphs g,graph_discovery gd"
+		" where g.graphid=gd.graphid"
+			" and gd.parent_graphid=" ZBX_FS_UI64,
+		parent_graphid);
+
+	if (NULL != ruleids)
+	{
+		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " and exists"
+				" (select null from graphs_items gi,item_discovery id"
+				" where g.graphid=gi.graphid"
+					" and gi.itemid=id.itemid"
+					" and");
+
+		zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, "id.lldruleid", ruleids->values,
+				ruleids->values_num);
+
+		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ")");
+	}
+
+	result = zbx_db_select("%s", sql);
+	zbx_free(sql);
 
 	while (NULL != (row = zbx_db_fetch(result)))
 	{
@@ -908,17 +928,22 @@ static void	lld_graphs_make(const zbx_vector_lld_gitem_ptr_t *gitems_proto, zbx_
 }
 
 static void	lld_validate_graph_field(zbx_lld_graph_t *graph, char **field, char **field_orig, zbx_uint64_t flag,
-		size_t field_len, char **error)
+		size_t field_len, int dflags, char **error)
 {
+	const char	*kind = "";
+
 	/* only new graphs or graphs with changed data will be validated */
 	if (0 != graph->graphid && 0 == (graph->flags & flag))
 		return;
 
+	if (0 != (dflags & ZBX_FLAG_DISCOVERY_PROTOTYPE))
+		kind = " prototype";
+
 	if (SUCCEED != zbx_is_utf8(*field))
 	{
 		zbx_replace_invalid_utf8(*field);
-		*error = zbx_strdcatf(*error, "Cannot %s graph \"%s\": value \"%s\" has invalid UTF-8 sequence.\n",
-				(0 != graph->graphid ? "update" : "create"), graph->name, *field);
+		*error = zbx_strdcatf(*error, "Cannot %s graph%s \"%s\": value \"%s\" has invalid UTF-8 sequence.\n",
+				(0 != graph->graphid ? "update" : "create"), kind, graph->name, *field);
 	}
 	else if (zbx_strlen_utf8(*field) > field_len)
 	{
@@ -928,19 +953,25 @@ static void	lld_validate_graph_field(zbx_lld_graph_t *graph, char **field, char 
 
 		if (0 != (flag & ZBX_FLAG_LLD_GRAPH_UPDATE_NAME))
 		{
-			*error = zbx_strdcatf(*error, "Cannot %s graph \"%s\": name is too long.\n",
-					(0 != graph->graphid ? "update" : "create"), value_short);
+			*error = zbx_strdcatf(*error, "Cannot %s graph%s \"%s\": name is too long.\n",
+					(0 != graph->graphid ? "update" : "create"), kind, value_short);
 		}
 		else
 		{
-			*error = zbx_strdcatf(*error, "Cannot %s graph \"%s\": value \"%s\" is too long.\n",
-					(0 != graph->graphid ? "update" : "create"), graph->name, value_short);
+			*error = zbx_strdcatf(*error, "Cannot %s graph%s \"%s\": value \"%s\" is too long.\n",
+					(0 != graph->graphid ? "update" : "create"), kind, graph->name, value_short);
 		}
 	}
 	else if (ZBX_FLAG_LLD_GRAPH_UPDATE_NAME == flag && '\0' == **field)
 	{
-		*error = zbx_strdcatf(*error, "Cannot %s graph: name is empty.\n",
-				(0 != graph->graphid ? "update" : "create"));
+		*error = zbx_strdcatf(*error, "Cannot %s graph%s: name is empty.\n",
+				(0 != graph->graphid ? "update" : "create"), kind);
+	}
+	else if (ZBX_FLAG_LLD_GRAPH_UPDATE_NAME == flag && 0 != (dflags & ZBX_FLAG_DISCOVERY_PROTOTYPE) &&
+			SUCCEED != lld_text_has_lld_macro(graph->name))
+	{
+		*error = zbx_strdcatf(*error, "Cannot %s graph%s \"%s\": name does not contain LLD macro(s).\n",
+				(0 != graph->graphid ? "update" : "create"), kind, graph->name);
 	}
 	else
 		return;
@@ -1039,10 +1070,11 @@ out:
  *                                                                            *
  * Parameters: hostid - [IN]                                                  *
  *             graphs - [IN] sorted list of graphs                            *
+ *             dflags - [IN] discovery flags                                  *
  *             error  - [OUT]                                                 *
  *                                                                            *
  ******************************************************************************/
-static void	lld_graphs_validate(zbx_uint64_t hostid, zbx_vector_lld_graph_ptr_t *graphs, char **error)
+static void	lld_graphs_validate(zbx_uint64_t hostid, zbx_vector_lld_graph_ptr_t *graphs, int dflags, char **error)
 {
 	zbx_lld_graph_t		*graph;
 	zbx_hashset_t		name_index;
@@ -1062,7 +1094,7 @@ static void	lld_graphs_validate(zbx_uint64_t hostid, zbx_vector_lld_graph_ptr_t 
 			continue;
 
 		lld_validate_graph_field(graph, &graph->name, &graph->name_orig,
-				ZBX_FLAG_LLD_GRAPH_UPDATE_NAME, ZBX_GRAPH_NAME_LEN, error);
+				ZBX_FLAG_LLD_GRAPH_UPDATE_NAME, ZBX_GRAPH_NAME_LEN, dflags, error);
 
 		/* index existing graphs without pending name updates */
 		if (0 != graph->graphid && 0 == (graph->flags & ZBX_FLAG_LLD_GRAPH_UPDATE_NAME))
@@ -1619,7 +1651,8 @@ static void	lld_process_lost_graphs(zbx_vector_lld_graph_ptr_t *graphs, const zb
  *                                                                            *
  ******************************************************************************/
 int	lld_update_graphs(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_vector_lld_row_ptr_t *lld_rows,
-		char **error, const zbx_lld_lifetime_t *lifetime, int lastcheck, int dflags)
+		char **error, const zbx_lld_lifetime_t *lifetime, int lastcheck, int dflags,
+		const zbx_vector_uint64_t *ruleids)
 {
 	int				ret = SUCCEED;
 	zbx_db_result_t			result;
@@ -1639,10 +1672,9 @@ int	lld_update_graphs(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_ve
 			"select distinct g.graphid,g.name,g.width,g.height,g.yaxismin,g.yaxismax,g.show_work_period,"
 				"g.show_triggers,g.graphtype,g.show_legend,g.show_3d,g.percent_left,g.percent_right,"
 				"g.ymin_type,g.ymin_itemid,g.ymax_type,g.ymax_itemid,g.discover"
-			" from graphs g,graphs_items gi,items i,item_discovery id"
+			" from graphs g,graphs_items gi,item_discovery id"
 			" where g.graphid=gi.graphid"
-				" and gi.itemid=i.itemid"
-				" and i.itemid=id.itemid"
+				" and gi.itemid=id.itemid"
 				" and id.lldruleid=" ZBX_FS_UI64,
 			lld_ruleid);
 
@@ -1676,7 +1708,7 @@ int	lld_update_graphs(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_ve
 
 		lld_graphs_get(parent_graphid, &graphs, width, height, yaxismin, yaxismax, show_work_period,
 				show_triggers, graphtype, show_legend, show_3d, percent_left, percent_right,
-				ymin_type, ymax_type, discover_proto);
+				ymin_type, ymax_type, discover_proto, ruleids);
 
 		lld_gitems_get(parent_graphid, &gitems_proto, &graphs);
 
@@ -1687,7 +1719,7 @@ int	lld_update_graphs(zbx_uint64_t hostid, zbx_uint64_t lld_ruleid, const zbx_ve
 		lld_graphs_make(&gitems_proto, &graphs, &items, name_proto, ymin_itemid_proto, ymax_itemid_proto,
 				discover_proto, lastcheck, lld_rows, dflags);
 
-		lld_graphs_validate(hostid, &graphs, error);
+		lld_graphs_validate(hostid, &graphs, dflags, error);
 
 		ret = lld_graphs_save(hostid, parent_graphid, &graphs, width, height, yaxismin, yaxismax,
 				show_work_period, show_triggers, graphtype, show_legend, show_3d, percent_left,

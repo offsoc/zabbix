@@ -13,8 +13,8 @@
 **/
 
 #include "lld.h"
+#include "zbxcommon.h"
 #include "zbxalgo.h"
-#include "lld_audit.h"
 #include "audit/zbxaudit.h"
 #include "audit/zbxaudit_item.h"
 #include "zbxdb.h"
@@ -22,11 +22,14 @@
 #include "zbx_item_constants.h"
 #include "zbxpreproc.h"
 #include "zbxeval.h"
-#include "zbxexpr.h"
 #include "zbxnum.h"
 #include "zbxstr.h"
 #include "zbxtime.h"
 #include "zbxvariant.h"
+#include "zbxcacheconfig.h"
+#include "zbxjson.h"
+#include "zbxtypes.h"
+#include "zbxexpr.h"
 
 /* lld_override table columns */
 #define LLD_OVERRIDE_COL_NAME			0
@@ -350,16 +353,21 @@ void	lld_rule_get_exported_macros(zbx_uint64_t ruleid, zbx_vector_lld_macro_t *m
 
 /******************************************************************************
  *                                                                            *
- * Purpose: Updates existing lld rule macro paths and creates new ones based  *
- *          on rule prototypes.                                               *
+ * Purpose: updates existing LLD rule macro paths and creates new ones based  *
+ *          on rule prototypes                                                *
  *                                                                            *
- * Parameters: item_prototypes - [IN]                                         *
- *             items           - [IN/OUT] sorted list of items                *
+ * Parameters: items - [IN/OUT] sorted list of items                          *
  *                                                                            *
  ******************************************************************************/
 void	lld_rule_macro_paths_make(zbx_vector_lld_item_full_ptr_t *items)
 {
+#define LLD_PROTOTYPE_MACRO_PATH_COL_PATH	1
+
+	zbx_sync_rowset_t	macro_paths_subst;
+
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
+
+	zbx_sync_rowset_init(&macro_paths_subst, ZBX_LLD_ITEM_PROTOTYPE_MACRO_PATH_COLS_NUM);
 
 	for (int i = 0; i < items->values_num; i++)
 	{
@@ -371,10 +379,24 @@ void	lld_rule_macro_paths_make(zbx_vector_lld_item_full_ptr_t *items)
 		if (0 == (item->prototype->item_flags & ZBX_FLAG_DISCOVERY_RULE))
 			continue;
 
-		zbx_sync_rowset_merge(&item->macro_paths, &item->prototype->macro_paths);
+		zbx_sync_rowset_copy(&macro_paths_subst, &item->prototype->macro_paths);
+
+		for (int j = 0; j < macro_paths_subst.rows.values_num; j++)
+		{
+			zbx_sync_row_t	*row = macro_paths_subst.rows.values[j];
+
+			zbx_substitute_lld_macros(&row->cols[LLD_PROTOTYPE_MACRO_PATH_COL_PATH], item->lld_row->data,
+					ZBX_MACRO_ANY, NULL, 0);
+		}
+
+		zbx_sync_rowset_merge(&item->macro_paths, &macro_paths_subst);
+		zbx_vector_sync_row_ptr_clear_ext(&macro_paths_subst.rows, zbx_sync_row_free);
 	}
 
+	zbx_sync_rowset_clear(&macro_paths_subst);
 	zabbix_log(LOG_LEVEL_DEBUG, "End of %s()", __func__);
+
+#undef LLD_PROTOTYPE_MACRO_PATH_COL_PATH
 }
 
 /******************************************************************************
@@ -747,7 +769,6 @@ void	lld_rule_filters_make(zbx_vector_lld_item_full_ptr_t *items, char **info)
 
 		if (0 == (item->prototype->item_flags & ZBX_FLAG_DISCOVERY_RULE))
 			continue;
-
 
 		zbx_sync_rowset_merge(&item->filters, &item->prototype->filters);
 	}
@@ -2928,13 +2949,12 @@ static void	lld_rule_export_lld_macros(const zbx_vector_lld_item_full_ptr_t *ite
  *                                                                            *
  * Purpose: process nested LLD rules                                          *
  *                                                                            *
- * Parameters: hostid          - [IN] host identifier                         *
- *             items           - [IN] vector of discovered LLD items          *
+ * Parameters: items           - [IN] vector of discovered LLD items          *
  *                                                                            *
  * Comments: Nested LLD in this scope is an LLD rule of nested item type      *
  *                                                                            *
  ******************************************************************************/
-static void	lld_rule_process_nested_rules(zbx_uint64_t hostid, const zbx_vector_lld_item_full_ptr_t *items)
+static void	lld_rule_process_nested_rules(const zbx_vector_lld_item_full_ptr_t *items)
 {
 	for (int i = 0; i < items->values_num; i++)
 	{
@@ -2949,7 +2969,7 @@ static void	lld_rule_process_nested_rules(zbx_uint64_t hostid, const zbx_vector_
 			continue;
 		}
 
-		lld_rule_process_nested_rule(hostid, item->itemid, item->lld_row);
+		lld_rule_process_nested_rule(item->itemid, item->lld_row);
 	}
 }
 
@@ -2987,7 +3007,7 @@ int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_p
 			ZBX_DEFAULT_MEM_MALLOC_FUNC, ZBX_DEFAULT_MEM_REALLOC_FUNC, ZBX_DEFAULT_MEM_FREE_FUNC);
 
 	lld_rule_export_lld_macros(items);
-	lld_rule_process_nested_rules(hostid, items);
+	lld_rule_process_nested_rules(items);
 
 	/* prepare remapping of prototype ids to lld rule ids for discovered item prototypes */
 
@@ -3036,17 +3056,28 @@ int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_p
 
 	/* discovery corresponding LLD rule prototypes */
 
-	zbx_lld_lifetime_t		lifetime = {ZBX_LLD_LIFETIME_TYPE_IMMEDIATELY, 0},
-					enabled_lifetime = {ZBX_LLD_LIFETIME_TYPE_NEVER, 0};
+	zbx_lld_lifetime_t	lifetime = {ZBX_LLD_LIFETIME_TYPE_IMMEDIATELY, 0},
+				enabled_lifetime = {ZBX_LLD_LIFETIME_TYPE_NEVER, 0};
+	zbx_vector_uint64_t	ruleids;
+
+	zbx_vector_uint64_create(&ruleids);
 
 	zbx_vector_lld_prototype_rules_ptr_sort(&prototype_rules_sorted, lld_prototype_rules_compare);
 	for (int i = 0; i < prototype_rules_sorted.values_num; i++)
 	{
 		zbx_lld_prototype_rules_t	*prules = prototype_rules_sorted.values[i];
 		const zbx_lld_item_prototype_t	*item_prototype = prules->prototype;
+		zbx_lld_row_ruleid_t		*row_ruleid;
+
+		zbx_hashset_iter_reset(&prules->rule_index, &iter);
+		while (NULL != (row_ruleid = (zbx_lld_row_ruleid_t *)zbx_hashset_iter_next(&iter)))
+			zbx_vector_uint64_append(&ruleids, row_ruleid->ruleid);
+
+		zbx_vector_uint64_sort(&ruleids, ZBX_DEFAULT_UINT64_COMPARE_FUNC);
 
 		if (FAIL == lld_update_items(hostid, item_prototype->itemid,  &prules->lld_rows, error, &lifetime,
-				&enabled_lifetime, lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &prules->rule_index))
+				&enabled_lifetime, lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &prules->rule_index,
+				&ruleids))
 		{
 			zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add items because parent host was removed while"
 					" processing lld rule");
@@ -3056,7 +3087,7 @@ int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_p
 		lld_item_links_sort(&prules->lld_rows);
 
 		if (SUCCEED != lld_update_triggers(hostid, item_prototype->itemid, &prules->lld_rows, error, &lifetime,
-				&enabled_lifetime, lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE))
+				&enabled_lifetime, lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &ruleids))
 		{
 			zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add triggers because parent host was removed while"
 					" processing lld rule");
@@ -3064,7 +3095,7 @@ int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_p
 		}
 
 		if (SUCCEED != lld_update_graphs(hostid, item_prototype->itemid, &prules->lld_rows, error, &lifetime,
-				lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE))
+				lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &ruleids))
 		{
 			zabbix_log(LOG_LEVEL_DEBUG, "cannot update/add graphs because parent host was removed while"
 					" processing lld rule");
@@ -3072,11 +3103,15 @@ int	lld_rule_discover_prototypes(zbx_uint64_t hostid, const zbx_vector_lld_row_p
 		}
 
 		lld_update_hosts(item_prototype->itemid, &prules->lld_rows, error, &lifetime, &enabled_lifetime,
-				lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &prules->rule_index);
+				lastcheck, ZBX_FLAG_DISCOVERY_PROTOTYPE, &prules->rule_index, &ruleids);
+
+		zbx_vector_uint64_clear(&ruleids);
 	}
 
 	ret = SUCCEED;
 out:
+	zbx_vector_uint64_destroy(&ruleids);
+
 	zbx_hashset_destroy(&prototype_rules);
 	zbx_vector_lld_prototype_rules_ptr_destroy(&prototype_rules_sorted);
 
@@ -3095,7 +3130,7 @@ out:
  * Comments: Nested LLD in this scope is an LLD rule of nested item type      *
  *                                                                            *
  ******************************************************************************/
-void	lld_rule_process_nested_rule(zbx_uint64_t hostid, zbx_uint64_t itemid, const zbx_lld_row_t *lld_row)
+void	lld_rule_process_nested_rule(zbx_uint64_t itemid, const zbx_lld_row_t *lld_row)
 {
 	char		*value = NULL;
 	size_t		value_alloc = 0, value_offset = 0;
@@ -3109,8 +3144,8 @@ void	lld_rule_process_nested_rule(zbx_uint64_t hostid, zbx_uint64_t itemid, cons
 
 	zbx_timespec(&ts);
 
-	zbx_preprocess_item_value(itemid, hostid, ITEM_VALUE_TYPE_TEXT, ZBX_FLAG_DISCOVERY_RULE, &result, &ts,
-			ITEM_STATE_NORMAL, NULL);
+	zbx_preprocess_item_value(itemid, ITEM_VALUE_TYPE_TEXT, ZBX_FLAG_DISCOVERY_RULE,
+			ZBX_ITEM_REQUIRES_PREPROCESSING_YES, &result, &ts, ITEM_STATE_NORMAL, NULL);
 	zbx_preprocessor_flush();
 
 	zbx_free(value);

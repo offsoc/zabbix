@@ -831,6 +831,7 @@ class CSetupWizard extends CForm {
 					->setValue($this->getConfig('default_timezone', ZBX_DEFAULT_TIMEZONE))
 					->addOptions(CSelect::createOptionsFromArray($timezones))
 					->setFocusableElementId('label-default-timezone')
+					->setWidth(ZBX_TEXTAREA_MEDIUM_WIDTH)
 					->setAttribute('autofocus', 'autofocus')
 			])
 			->addItem([
@@ -1256,18 +1257,12 @@ class CSetupWizard extends CForm {
 
 		$error = false;
 
-		/*
-		 * Create session secret key for first installation. If installation already exists, don't make a new key
-		 * because that will terminate the existing session.
-		 */
-		$db_connected = $this->dbConnect($db_user, $db_password);
-		$is_superadmin = (CWebUser::$data && CWebUser::getType() == USER_TYPE_SUPER_ADMIN);
-
-		$session_key_update_failed = $db_connected && !$is_superadmin
-			? !CEncryptHelper::updateKey(CEncryptHelper::generateKey())
-			: false;
-
-		if (!$db_connected || $session_key_update_failed) {
+		if ($this->dbConnect($db_user, $db_password)) {
+			if (CWebUser::$data === null) {
+				CEncryptHelper::updateKey(CEncryptHelper::generateKey());
+			}
+		}
+		else {
 			$this->step_failed = true;
 			$this->setConfig('step', self::STAGE_DB_CONNECTION);
 
@@ -1445,21 +1440,42 @@ class CSetupWizard extends CForm {
 		return $result;
 	}
 
-	private function checkServerTLSConfiguration() {
+	private function checkServerTLSConfiguration(): bool {
 		if ($this->getConfig('ZBX_SERVER_TLS') == 0) {
 			return true;
 		}
 
-		$configFields = ['ZBX_SERVER_TLS_CA_FILE', 'ZBX_SERVER_TLS_KEY_FILE', 'ZBX_SERVER_TLS_CERT_FILE'];
+		$configFields = [
+			'ZBX_SERVER_TLS_CA_FILE' => _('TLS CA file'),
+			'ZBX_SERVER_TLS_KEY_FILE' => _('TLS key file'),
+			'ZBX_SERVER_TLS_CERT_FILE' => _('TLS certificate file')
+		];
+		$has_error = false;
 
-		foreach ($configFields as $field) {
+		foreach ($configFields as $field => $field_label) {
 			$path = $this->getConfig($field, '');
+			$error_message = null;
 
-			if ($path === '' || !file_exists($path) || !is_readable($path)) {
-				return false;
+			if ($path === '') {
+				$error_message = _s('%1$s: %2$s.', $field_label, _('cannot be empty'));
+			}
+			elseif (!file_exists($path)) {
+				$error_message = _s('%1$s: invalid path or file not found.', $field_label);
+			}
+			elseif (!is_readable($path)) {
+				$error_message = _s('%1$s: file is not readable.', $field_label);
+			}
+
+			if ($error_message !== null) {
+				$has_error = true;
+				CMessageHelper::addMessage([
+					'type' => CMessageHelper::MESSAGE_TYPE_ERROR,
+					'message' => $error_message,
+					'is_technical_error' => false
+				]);
 			}
 		}
 
-		return true;
+		return !$has_error;
 	}
 }
